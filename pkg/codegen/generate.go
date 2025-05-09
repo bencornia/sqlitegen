@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"text/template"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -28,9 +29,11 @@ func catch(err error) {
 }
 
 func Generate(dsn string, writer io.Writer) {
+	// Step 1) Get database
 	db, err := sql.Open("sqlite3", dsn)
 	catch(err)
 
+	// Step 2) Check for existing tables
 	var exists bool
 	err = db.QueryRow("select count(*) > 0 from sqlite_master").Scan(&exists)
 	catch(err)
@@ -39,6 +42,7 @@ func Generate(dsn string, writer io.Writer) {
 		catch(fmt.Errorf("No tables in %s", dsn))
 	}
 
+	// Step 3) Get schemas
 	tableNames, err := db.Query("select name from sqlite_master where type = 'table'")
 	catch(err)
 
@@ -71,6 +75,16 @@ func Generate(dsn string, writer io.Writer) {
 		schemas = append(schemas, s)
 	}
 
-	_, err = writer.Write([]byte(fmt.Sprintf("%v\n", schemas)))
+	// Step 4) Execute template
+	tmpl := template.Must(template.New("").Parse(genTmpl))
+	err = tmpl.Execute(writer, schemas)
 	catch(err)
 }
+
+var genTmpl = `
+package models
+
+{{ range . }}
+
+{{ end }}
+	`
