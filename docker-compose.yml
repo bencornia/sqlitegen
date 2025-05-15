@@ -1,0 +1,11 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: ["air", "-c", ".air.toml"]
+    ports:
+      - "40000:40000"  # Delve debugger port
