@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"unicode"
 
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/tools/imports"
 )
 
 type schema struct {
@@ -79,46 +81,114 @@ func Generate(dsn string, writer io.Writer) {
 
 	// Step 4) Register template functions
 	funcs := template.FuncMap{
-		"title": func(val string) string {
-			runes := []rune(val)
-			runes[0] = unicode.ToUpper(runes[0])
-			return string(runes)
-		},
 		"jsonTag": func(col *column) string {
 			return fmt.Sprintf("`json:\"%s\"`", col.Name)
+		},
+		// PascalCase
+		"pascalCase": func(val string) string {
+			var (
+				result = ""
+				runes  = []rune(val)
+				i      = 0
+				upper  = false
+			)
+
+			for i < len(runes) {
+				if runes[i] == '_' {
+					i++
+					upper = true
+					continue
+				}
+
+				char := runes[i]
+				if i == 0 || (runes[i-1] == '_' && upper) {
+					char = unicode.ToUpper(char)
+				}
+
+				result += string(char)
+				i++
+				upper = false
+			}
+
+			return result
+		},
+		// camelCase
+		"camelCase": func(val string) string {
+			var (
+				result = ""
+				runes  = []rune(val)
+				i      = 0
+				upper  = false
+			)
+
+			for i < len(runes) {
+				if runes[i] == '_' {
+					i++
+					upper = true
+					continue
+				}
+
+				char := runes[i]
+				if upper && runes[i-1] == '_' {
+					char = unicode.ToUpper(char)
+				}
+
+				result += string(char)
+				i++
+				upper = false
+			}
+
+			return result
+		},
+		"getType": func(col *column) string {
+			return "any"
 		},
 	}
 
 	// Step 5) Execute template
+	var buf bytes.Buffer
 	tmpl := template.Must(template.New("").Funcs(funcs).Parse(genTmpl))
-	err = tmpl.Execute(writer, schemas)
+	err = tmpl.Execute(&buf, schemas)
+	catch(err)
+
+	// Step 6: Validate code
+
+	// Step 7: Format code
+	formatted, err := imports.Process("foo.go", buf.Bytes(), nil)
+	catch(err)
+
+	// Write file
+	_, err = writer.Write(formatted)
 	catch(err)
 }
 
+// foo bar
 var genTmpl = `
-package models
+{{- print "package models" }}
 
-{{ range . }}
-	type {{ .Name | title }} struct {
-		{{ range .Columns }}
-			{{ .Name | title }} {{ . | jsonTag }}
-		{{ end }}
-	}
+// DO NOT EDIT! THIS IS GENERATED CODE!
 
-	func GetAll{{ .Name | title }}() ([]*{{ .Name | title }}, error) {
-		
-	}
+{{ range . -}}
+type {{ .Name | pascalCase }} struct {
+    {{ range .Columns }}
+        {{ .Name | pascalCase }} {{ . | getType }} {{ . | jsonTag }}
+    {{ end -}}
+}
 
-	func Get{{ .Name | title }}(id int) (*{{ .Name | title }}, error) {
-		
-	}
+func GetAll{{ .Name | pascalCase }}() ([]*{{ .Name | pascalCase }}, error) {
+    
+}
 
-	func Update{{ .Name | title }}({{ .Name }} *{{ .Name | title }}) (*{{ .Name | title }}, error) {
-		
-	}
+func Get{{ .Name | pascalCase }}(id int) (*{{ .Name | pascalCase }}, error) {
+    
+}
 
-	func Delete{{ .Name | title }}(id int) (error) {
-		
-	}
+func Update{{ .Name | pascalCase }}({{ .Name }} *{{ .Name | pascalCase }}) (*{{ .Name | pascalCase }}, error) {
+    
+}
+
+func Delete{{ .Name | pascalCase }}(id int) (error) {
+    
+}
 {{ end -}}
 	`

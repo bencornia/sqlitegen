@@ -6,6 +6,7 @@ ENV PATH="/go/bin:${PATH}"
 # Install Air and Delve for development
 RUN go install github.com/air-verse/air@latest
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install golang.org/x/tools/cmd/goimports@latest
 
 WORKDIR /app
 CMD ["air"]
