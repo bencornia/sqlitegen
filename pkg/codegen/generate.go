@@ -141,7 +141,65 @@ func Generate(dsn string, writer io.Writer) {
 			return result
 		},
 		"getType": func(col *column) string {
-			return "any"
+			var dataType string
+			switch col.Type {
+			case "TEXT":
+				dataType = "string"
+			case "INTEGER":
+				dataType = "int"
+			case "REAL":
+				dataType = "float64"
+			case "BLOB":
+				return "[]bytes"
+			case "NULL":
+				return "{}interface"
+			}
+
+			if !col.NotNull {
+				return fmt.Sprintf("*%s", dataType)
+			}
+
+			return dataType
+		},
+		"columnNames": func(cols []*column) []string {
+			var items []string
+			for _, col := range cols {
+				items = append(items, col.Name)
+			}
+
+			return items
+		},
+		"join": func(items []string, sep string) string {
+			var result string
+			for i, item := range items {
+				if i > 0 {
+					result += sep
+				}
+
+				result += item
+			}
+
+			return result
+		},
+		"filter": func(items []string, excluded ...string) []string {
+			var result []string
+			for _, item := range items {
+				match := false
+				for _, ex := range excluded {
+					if ex == item {
+						match = true
+					}
+				}
+
+				if !match {
+					result = append(result, item)
+				}
+			}
+
+			return result
+		},
+		"backtick": func() string {
+			return "`"
 		},
 	}
 
@@ -154,7 +212,15 @@ func Generate(dsn string, writer io.Writer) {
 	// Step 6: Validate code
 
 	// Step 7: Format code
-	formatted, err := imports.Process("foo.go", buf.Bytes(), nil)
+	opts := &imports.Options{
+		Fragment:   false,
+		AllErrors:  false,
+		Comments:   true,
+		TabIndent:  false,
+		FormatOnly: false,
+	}
+
+	formatted, err := imports.Process("foo.go", buf.Bytes(), opts)
 	catch(err)
 
 	// Write file
@@ -169,26 +235,104 @@ var genTmpl = `
 // DO NOT EDIT! THIS IS GENERATED CODE!
 
 {{ range . -}}
-type {{ .Name | pascalCase }} struct {
+type {{ pascalCase .Name }} struct {
     {{ range .Columns }}
-        {{ .Name | pascalCase }} {{ . | getType }} {{ . | jsonTag }}
+		{{ pascalCase .Name }} {{ getType . }} {{ jsonTag . -}}
     {{ end -}}
 }
 
-func GetAll{{ .Name | pascalCase }}() ([]*{{ .Name | pascalCase }}, error) {
-    
+func Get{{ pascalCase .Name }}(db *sql.DB) ([]*{{ pascalCase .Name }}, error) {
+	var items []*{{ pascalCase .Name }}
+	query := {{ backtick }}
+		select {{ join (columnNames .Columns) ", " }}
+		from {{ .Name }};
+	{{ backtick }}
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return items, err
+	}
+
+	defer func(rows *sql.Rows){
+		err := rows.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(rows)
+
+	for rows.Next() {
+		var item {{ pascalCase .Name }}		
+
+		err = rows.Scan(
+			&item.{{ range $index, $item := (columnNames .Columns) }}
+			{{- if gt $index 0 }},
+			&item.{{ end }}{{ pascalCase $item }}
+			{{- end }},
+		)
+
+		if err != nil {
+			return items, err
+		}
+
+		items = append(items, &item)
+	}
+
+	return items, nil
+}
+ 
+func Get{{ pascalCase .Name }}ById(db *sql.DB, id int64) (*{{ pascalCase .Name }}, error) {
+	var item *{{ pascalCase .Name }}
+	query := {{ backtick }}
+		select {{ join (columnNames .Columns) ", " }}
+		from {{ .Name }}
+		where id = ?;
+	{{ backtick }}
+
+	err := db.QueryRow(query, id).Scan(
+		&item.{{ range $index, $col := .Columns }}
+		{{- if gt $index 0 }},
+		&item.{{ end }}{{ pascalCase $col.Name }}
+		{{- end }},
+	)
+
+	if err != nil {
+		return item, err
+	}
+
+	return &item
 }
 
-func Get{{ .Name | pascalCase }}(id int) (*{{ .Name | pascalCase }}, error) {
-    
+func Insert{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{ pascalCase .Name }}, error) {
+	query := {{ backtick }}
+		insert into {{ .Name }}({{ join (filter (columnNames .Columns) "id" "created_at" "updated_at") ", " }})
+		values ({{ range $index, $col := (filter (columnNames .Columns) "id" "created_at" "updated_at") }}
+		{{- if gt $index 0 }}, {{ end }}?
+		{{- end }});
+	{{ backtick }}
+
+	result, err := db.Exec(
+		query,
+		&item.{{ range $index, $col := (filter (columnNames .Columns) "id" "created_at" "updated_at") }}
+		{{- if gt $index 0 }},
+		&item.{{ end }}{{ pascalCase $col }}
+		{{- end }},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+
+	return Get{{ pascalCase .Name }}ById(db, id)
 }
 
-func Update{{ .Name | pascalCase }}({{ .Name }} *{{ .Name | pascalCase }}) (*{{ .Name | pascalCase }}, error) {
-    
-}
+// TODO: PUT /{{ .Name }}/{id}
 
-func Delete{{ .Name | pascalCase }}(id int) (error) {
-    
-}
+// TODO: DELETE /{{ .Name }}/{id}
+
 {{ end -}}
 	`
