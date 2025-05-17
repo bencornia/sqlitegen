@@ -146,7 +146,7 @@ func Generate(dsn string, writer io.Writer) {
 			case "TEXT":
 				dataType = "string"
 			case "INTEGER":
-				dataType = "int"
+				dataType = "int64"
 			case "REAL":
 				dataType = "float64"
 			case "BLOB":
@@ -281,7 +281,7 @@ func Get{{ pascalCase .Name }}(db *sql.DB) ([]*{{ pascalCase .Name }}, error) {
 }
  
 func Get{{ pascalCase .Name }}ById(db *sql.DB, id int64) (*{{ pascalCase .Name }}, error) {
-	var item *{{ pascalCase .Name }}
+	var item {{ pascalCase .Name }}
 	query := {{ backtick }}
 		select {{ join (columnNames .Columns) ", " }}
 		from {{ .Name }}
@@ -296,18 +296,18 @@ func Get{{ pascalCase .Name }}ById(db *sql.DB, id int64) (*{{ pascalCase .Name }
 	)
 
 	if err != nil {
-		return item, err
+		return &item, err
 	}
 
-	return &item
+	return &item, nil
 }
 
 func Insert{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{ pascalCase .Name }}, error) {
 	query := {{ backtick }}
-		insert into {{ .Name }}({{ join (filter (columnNames .Columns) "id" "created_at" "updated_at") ", " }})
+		insert into {{ .Name }}({{ join (filter (columnNames .Columns) "id") ", " }})
 		values ({{ range $index, $col := (filter (columnNames .Columns) "id" "created_at" "updated_at") }}
 		{{- if gt $index 0 }}, {{ end }}?
-		{{- end }});
+		{{- end }}, datetime(), datetime());
 	{{ backtick }}
 
 	result, err := db.Exec(
@@ -319,20 +319,51 @@ func Insert{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{
 	)
 
 	if err != nil {
-		return err
+		return item, err
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return err
+		return item, err
 	}
 
 	return Get{{ pascalCase .Name }}ById(db, id)
 }
 
-// TODO: PUT /{{ .Name }}/{id}
+func Update{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{ pascalCase .Name }}, error) {
+	query := {{ backtick }}
+		update {{ .Name }}
+		set {{ join (filter (columnNames .Columns ) "id" "created_at" "updated_at") " = ?, "}} = ?, updated_at = datetime()
+	{{ backtick }}
 
-// TODO: DELETE /{{ .Name }}/{id}
+	_, err := db.Exec(
+		query,
+		&item.{{ range $index, $col := (filter (columnNames .Columns) "id" "created_at" "updated_at") }}
+		{{- if gt $index 0 }},
+		&item.{{ end }}{{ pascalCase $col }}
+		{{- end }},
+	)
+
+	if err != nil {
+		return item, err
+	}
+
+	return Get{{ pascalCase .Name }}ById(db, item.Id)
+}
+
+func Delete{{ pascalCase .Name }}(db *sql.DB, id int) error {
+	query := {{ backtick }}
+		delete from {{ .Name }}
+		where id = ?
+	{{ backtick }}
+
+	_, err := db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 {{ end -}}
 	`
