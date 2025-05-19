@@ -12,9 +12,8 @@ import (
 func main() {
 	outFile := flag.String("output", "", "Optional output file name")
 	flag.Parse()
-
 	args := flag.Args()
-	if len(args) != 1 {
+	if len(args) < 1 || len(args) > 3 {
 		fmt.Fprintf(os.Stderr, "Usage %s <inputfile> [-output <outputfile>]\n", os.Args[0])
 		os.Exit(1)
 	}
