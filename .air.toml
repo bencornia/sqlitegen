@@ -2,8 +2,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-cmd = "go build --gcflags='all=-N -l' -o ./tmp/main ./cmd/sqlitegen/main.go"
-full_bin = "./tmp/main ./examples/basic/db.sqlite"
+cmd = "go build --gcflags='all=-N -l' -o ./tmp/sqlitegen ./cmd/sqlitegen/main.go"
+full_bin = "./tmp/sqlitegen ./examples/basic/db.sqlite"
 # full_bin = "dlv --listen=127.0.0.1:40000 --headless=true --api-version=2 exec ./tmp/main -- ./examples/basic/db.sqlite"
 include_ext = ["go", "tmpl"]
 exclude_dir = ["examples", "tmp", "vendor"]

@@ -31,7 +31,7 @@ func catch(err error) {
 	}
 }
 
-func Generate(dsn string, writer io.Writer) {
+func Generate(dsn string, packageName string, writer io.Writer) {
 	// Step 1) Get database
 	db, err := sql.Open("sqlite3", dsn)
 	catch(err)
@@ -48,6 +48,11 @@ func Generate(dsn string, writer io.Writer) {
 	// Step 3) Get schemas
 	tableNames, err := db.Query("select name from sqlite_master where type = 'table'")
 	catch(err)
+
+	var data struct {
+		PackageName string
+		Schemas     []*schema
+	}
 
 	var schemas []*schema
 	defer func(rows *sql.Rows) {
@@ -76,8 +81,34 @@ func Generate(dsn string, writer io.Writer) {
 			s.Columns = append(s.Columns, &col)
 		}
 
+		// Ensure that the columns include id, updated_at, created_at
+		hasId := false
+		hasUpdatedAt := false
+		hasCreatedAt := false
+		for _, col := range s.Columns {
+			switch col.Name {
+			case "id":
+				hasId = true
+			case "updated_at":
+				hasUpdatedAt = true
+			case "created_at":
+				hasCreatedAt = true
+			}
+		}
+
+		if !(hasId && hasUpdatedAt && hasCreatedAt) {
+			continue
+		}
+
 		schemas = append(schemas, s)
 	}
+
+	if len(schemas) == 0 {
+		catch(fmt.Errorf("no supported schemas"))
+	}
+
+	data.PackageName = packageName
+	data.Schemas = schemas
 
 	// Step 4) Register template functions
 	funcs := template.FuncMap{
@@ -206,12 +237,10 @@ func Generate(dsn string, writer io.Writer) {
 	// Step 5) Execute template
 	var buf bytes.Buffer
 	tmpl := template.Must(template.New("").Funcs(funcs).Parse(genTmpl))
-	err = tmpl.Execute(&buf, schemas)
+	err = tmpl.Execute(&buf, data)
 	catch(err)
 
-	// Step 6: Validate code
-
-	// Step 7: Format code
+	// Step 6: Format code
 	opts := &imports.Options{
 		Fragment:   false,
 		AllErrors:  false,
@@ -230,25 +259,33 @@ func Generate(dsn string, writer io.Writer) {
 
 // foo bar
 var genTmpl = `
-{{- print "package models" }}
+{{- print "package " }}{{ .PackageName }}
 
 // DO NOT EDIT! THIS IS GENERATED CODE!
 
-{{ range . -}}
+type Store struct {
+	db *sql.DB
+}
+
+func NewStore(db *sql.DB) *Store {
+	return &Store{db}
+} 
+
+{{ range .Schemas -}}
 type {{ pascalCase .Name }} struct {
     {{ range .Columns }}
 		{{ pascalCase .Name }} {{ getType . }} {{ jsonTag . -}}
     {{ end -}}
 }
 
-func Get{{ pascalCase .Name }}(db *sql.DB) ([]*{{ pascalCase .Name }}, error) {
+func (s *Store) Get{{ pascalCase .Name }}() ([]*{{ pascalCase .Name }}, error) {
 	var items []*{{ pascalCase .Name }}
 	query := {{ backtick }}
 		select {{ join (columnNames .Columns) ", " }}
 		from {{ .Name }};
 	{{ backtick }}
 
-	rows, err := db.Query(query)
+	rows, err := s.db.Query(query)
 	if err != nil {
 		return items, err
 	}
@@ -280,7 +317,7 @@ func Get{{ pascalCase .Name }}(db *sql.DB) ([]*{{ pascalCase .Name }}, error) {
 	return items, nil
 }
  
-func Get{{ pascalCase .Name }}ById(db *sql.DB, id int64) (*{{ pascalCase .Name }}, error) {
+func (s *Store) Get{{ pascalCase .Name }}ById(id int64) (*{{ pascalCase .Name }}, error) {
 	var item {{ pascalCase .Name }}
 	query := {{ backtick }}
 		select {{ join (columnNames .Columns) ", " }}
@@ -288,7 +325,7 @@ func Get{{ pascalCase .Name }}ById(db *sql.DB, id int64) (*{{ pascalCase .Name }
 		where id = ?;
 	{{ backtick }}
 
-	err := db.QueryRow(query, id).Scan(
+	err := s.db.QueryRow(query, id).Scan(
 		&item.{{ range $index, $col := .Columns }}
 		{{- if gt $index 0 }},
 		&item.{{ end }}{{ pascalCase $col.Name }}
@@ -302,7 +339,7 @@ func Get{{ pascalCase .Name }}ById(db *sql.DB, id int64) (*{{ pascalCase .Name }
 	return &item, nil
 }
 
-func Insert{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{ pascalCase .Name }}, error) {
+func (s *Store) Insert{{ pascalCase .Name }}(item *{{ pascalCase .Name }}) (*{{ pascalCase .Name }}, error) {
 	query := {{ backtick }}
 		insert into {{ .Name }}({{ join (filter (columnNames .Columns) "id") ", " }})
 		values ({{ range $index, $col := (filter (columnNames .Columns) "id" "created_at" "updated_at") }}
@@ -310,7 +347,7 @@ func Insert{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{
 		{{- end }}, datetime(), datetime());
 	{{ backtick }}
 
-	result, err := db.Exec(
+	result, err := s.db.Exec(
 		query,
 		&item.{{ range $index, $col := (filter (columnNames .Columns) "id" "created_at" "updated_at") }}
 		{{- if gt $index 0 }},
@@ -327,16 +364,16 @@ func Insert{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{
 		return item, err
 	}
 
-	return Get{{ pascalCase .Name }}ById(db, id)
+	return s.Get{{ pascalCase .Name }}ById(id)
 }
 
-func Update{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{ pascalCase .Name }}, error) {
+func (s *Store) Update{{ pascalCase .Name }}(item *{{ pascalCase .Name }}) (*{{ pascalCase .Name }}, error) {
 	query := {{ backtick }}
 		update {{ .Name }}
 		set {{ join (filter (columnNames .Columns ) "id" "created_at" "updated_at") " = ?, "}} = ?, updated_at = datetime()
 	{{ backtick }}
 
-	_, err := db.Exec(
+	_, err := s.db.Exec(
 		query,
 		&item.{{ range $index, $col := (filter (columnNames .Columns) "id" "created_at" "updated_at") }}
 		{{- if gt $index 0 }},
@@ -348,16 +385,16 @@ func Update{{ pascalCase .Name }}(db *sql.DB, item *{{ pascalCase .Name }}) (*{{
 		return item, err
 	}
 
-	return Get{{ pascalCase .Name }}ById(db, item.Id)
+	return s.Get{{ pascalCase .Name }}ById(item.Id)
 }
 
-func Delete{{ pascalCase .Name }}(db *sql.DB, id int) error {
+func (s *Store) Delete{{ pascalCase .Name }}(id int) error {
 	query := {{ backtick }}
 		delete from {{ .Name }}
 		where id = ?
 	{{ backtick }}
 
-	_, err := db.Exec(query, id)
+	_, err := s.db.Exec(query, id)
 	if err != nil {
 		return err
 	}

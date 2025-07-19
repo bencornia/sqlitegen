@@ -11,10 +11,12 @@ import (
 
 func main() {
 	outFile := flag.String("output", "", "Optional output file name")
+	packageName := flag.String("package-name", "model", "Optional package name")
 	flag.Parse()
+
 	args := flag.Args()
-	if len(args) < 1 || len(args) > 3 {
-		fmt.Fprintf(os.Stderr, "Usage %s <inputfile> [-output <outputfile>]\n", os.Args[0])
+	if len(args) != 1 {
+		fmt.Fprintf(os.Stderr, "Usage %s [-output <outputfile>] <inputfile>\n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -37,5 +39,5 @@ func main() {
 		writer = file
 	}
 
-	codegen.Generate(args[0], writer)
+	codegen.Generate(args[0], *packageName, writer)
 }
