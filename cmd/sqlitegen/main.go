@@ -11,12 +11,12 @@ import (
 
 func main() {
 	outFile := flag.String("output", "", "Optional output file name")
-	packageName := flag.String("package-name", "model", "Optional package name")
+	packageName := flag.String("package", "model", "Optional package name")
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "Usage %s [-output <outputfile>] <inputfile>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage %s [-output <outputfile>] [-package <package name>] <inputfile>\n", os.Args[0])
 		os.Exit(1)
 	}
 
