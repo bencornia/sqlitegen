@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/bencornia/sqlitegen/pkg/codegen"
+	"github.com/bencornia/sqlitegen/internal/codegen"
 )
 
 func main() {
