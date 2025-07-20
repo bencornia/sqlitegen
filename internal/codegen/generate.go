@@ -19,9 +19,10 @@ type schema struct {
 }
 
 type column struct {
-	Name    string
-	Type    string
-	NotNull bool
+	Name         string
+	Type         string
+	NotNull      bool
+	IsPrimaryKey bool
 }
 
 func catch(err error) {
@@ -64,7 +65,7 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 		err = tableNames.Scan(&tableName)
 		catch(err)
 
-		query := fmt.Sprintf("select name, type, `notnull` from pragma_table_info('%s')", tableName)
+		query := fmt.Sprintf("select name, type, `notnull`, pk from pragma_table_info('%s')", tableName)
 		columns, err := db.Query(query)
 		catch(err)
 
@@ -75,20 +76,20 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 		s := &schema{Name: tableName, Columns: []*column{}}
 		for columns.Next() {
 			var col column
-			err = columns.Scan(&col.Name, &col.Type, &col.NotNull)
+			err = columns.Scan(&col.Name, &col.Type, &col.NotNull, &col.IsPrimaryKey)
 			catch(err)
 
 			s.Columns = append(s.Columns, &col)
 		}
 
 		// Ensure that the columns include id, updated_at, created_at
-		hasId := false
+		hasPrimaryKey := false
 		hasUpdatedAt := false
 		hasCreatedAt := false
 		for _, col := range s.Columns {
 			switch col.Name {
 			case "id":
-				hasId = true
+				hasPrimaryKey = col.IsPrimaryKey
 			case "updated_at":
 				hasUpdatedAt = true
 			case "created_at":
@@ -96,7 +97,7 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 			}
 		}
 
-		if !(hasId && hasUpdatedAt && hasCreatedAt) {
+		if !(hasPrimaryKey && hasUpdatedAt && hasCreatedAt) {
 			continue
 		}
 
@@ -184,6 +185,10 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 				return "[]bytes"
 			case "NULL":
 				return "{}interface"
+			}
+
+			if col.IsPrimaryKey {
+				return dataType
 			}
 
 			if !col.NotNull {
