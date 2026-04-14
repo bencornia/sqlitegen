@@ -295,7 +295,7 @@ func (s *{{ $schemaPascal }}Store) Get(id int64) (*{{ $schemaPascal }}, error) {
 	{{ backtick }}
 
 	var item {{ $schemaPascal }}
-	err := s.db.QueryRow(sql, id).Scan(
+	err := s.db.QueryRow(query, id).Scan(
 	{{ range $column := $schema.Columns -}}
 		&item.{{ $column.Name | pascalCase }},
 	{{ end }})
@@ -370,8 +370,10 @@ func (s *{{ $schemaPascal }}Store) Delete(id int64) error {
 
 func (s *{{ $schemaPascal }}Store) GetMany(ids []int64) ([]*{{ $schemaPascal }}, error) {
 	placeholders := make([]string, len(ids))
-	for i := range ids  {
+	args := make([]any, len(ids))
+	for i, id := range ids  {
 		placeholders[i] = "?"
+		args[i] = id
 	}
 
 	query := {{ backtick }}
@@ -382,9 +384,28 @@ func (s *{{ $schemaPascal }}Store) GetMany(ids []int64) ([]*{{ $schemaPascal }},
 
 	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
 
-	rows, err := s.db.Query(query, ids...)
+	var results []*{{ $schemaPascal }}
+	rows, err := s.db.Query(query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
 
-	return nil
+	for rows.Next() {
+		var item {{ $schemaPascal }}
+		err = rows.Scan(	
+		{{ range $column := $schema.Columns -}}
+			&item.{{ $column.Name | pascalCase }},
+		{{ end }})
+
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, &item)
+	}
+
+	return results, nil
 }
 
 func (s *{{ $schemaPascal }}Store) UpdateMany(items []*{{ $schemaPascal }}) error {

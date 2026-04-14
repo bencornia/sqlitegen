@@ -1,15 +1,11 @@
-// DO NOT EDIT! THIS IS GENERATED CODE!
+// DO NOT EDIT! GENERATED CODE!
 package model
 
-import "database/sql"
-
-type Store struct {
-	db *sql.DB
-}
-
-func NewStore(db *sql.DB) *Store {
-	return &Store{db}
-}
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+)
 
 type Company struct {
 	Id        int64  `json:"id"`
@@ -18,71 +14,65 @@ type Company struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-func (s *Store) GetCompany() ([]*Company, error) {
-	var items []*Company
-	query := `
-		select id, name, created_at, updated_at
-		from company;
-	`
-
-	rows, err := s.db.Query(query)
-	if err != nil {
-		return items, err
-	}
-
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(rows)
-
-	for rows.Next() {
-		var item Company
-
-		err = rows.Scan(
-			&item.Id,
-			&item.Name,
-			&item.CreatedAt,
-			&item.UpdatedAt,
-		)
-
-		if err != nil {
-			return items, err
-		}
-
-		items = append(items, &item)
-	}
-
-	return items, nil
+type CompanyStore struct {
+	db *sql.DB
 }
 
-func (s *Store) GetCompanyById(id int64) (*Company, error) {
-	var item Company
+func NewCompanyStore(db *sql.DB) *CompanyStore {
+	return &CompanyStore{db: db}
+}
+
+func (s *CompanyStore) Get(id int64) (*Company, error) {
 	query := `
-		select id, name, created_at, updated_at
-		from company
-		where id = ?;
+		select	id,
+			name,
+			created_at,
+			updated_at
+		from	company
+		where	id = ?;
 	`
 
+	var item Company
 	err := s.db.QueryRow(query, id).Scan(
 		&item.Id,
 		&item.Name,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
-
 	if err != nil {
-		return &item, err
+		return nil, err
 	}
 
 	return &item, nil
 }
 
-func (s *Store) InsertCompany(item *Company) (*Company, error) {
+func (s *CompanyStore) Update(item *Company) error {
 	query := `
-		insert into company(name, created_at, updated_at)
-		values (?, datetime(), datetime());
+		update	company
+		set	name = ?,
+			updated_at = datetime()
+		where	id = ?;
+	`
+
+	_, err := s.db.Exec(
+		query,
+		&item.Name,
+		item.Id,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *CompanyStore) Insert(item *Company) (int64, error) {
+	query := `
+		insert into company(
+			name
+		)
+		values (?);
 	`
 
 	result, err := s.db.Exec(
@@ -91,39 +81,21 @@ func (s *Store) InsertCompany(item *Company) (*Company, error) {
 	)
 
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 
-	return s.GetCompanyById(id)
+	return id, nil
 }
 
-func (s *Store) UpdateCompany(item *Company) (*Company, error) {
-	query := `
-		update company
-		set name = ?, updated_at = datetime()
-	`
-
-	_, err := s.db.Exec(
-		query,
-		&item.Name,
-	)
-
-	if err != nil {
-		return item, err
-	}
-
-	return s.GetCompanyById(item.Id)
-}
-
-func (s *Store) DeleteCompany(id int) error {
+func (s *CompanyStore) Delete(id int64) error {
 	query := `
 		delete from company
-		where id = ?
+		where id = ?;
 	`
 
 	_, err := s.db.Exec(query, id)
@@ -131,6 +103,67 @@ func (s *Store) DeleteCompany(id int) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *CompanyStore) GetMany(ids []int64) ([]*Company, error) {
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := `
+		select	id,
+			name,
+			created_at,
+			updated_at
+		from	company
+		where	id in (%s);
+	`
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+
+	var results []*Company
+	rows, err := s.db.Query(query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var item Company
+		err = rows.Scan(
+			&item.Id,
+			&item.Name,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, &item)
+	}
+
+	return results, nil
+}
+
+func (s *CompanyStore) UpdateMany(items []*Company) error {
+	// TOOD: complete body
+	return nil
+}
+
+func (s *CompanyStore) InsertMany(items []*Company) ([]int64, error) {
+	// TOOD: complete body
+	var results []int64
+	return results, nil
+}
+
+func (s *CompanyStore) DeleteMany(ids int64) error {
+	// TOOD: complete body
 	return nil
 }
 
@@ -142,54 +175,26 @@ type Department struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-func (s *Store) GetDepartment() ([]*Department, error) {
-	var items []*Department
-	query := `
-		select id, company_id, name, created_at, updated_at
-		from department;
-	`
-
-	rows, err := s.db.Query(query)
-	if err != nil {
-		return items, err
-	}
-
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(rows)
-
-	for rows.Next() {
-		var item Department
-
-		err = rows.Scan(
-			&item.Id,
-			&item.CompanyId,
-			&item.Name,
-			&item.CreatedAt,
-			&item.UpdatedAt,
-		)
-
-		if err != nil {
-			return items, err
-		}
-
-		items = append(items, &item)
-	}
-
-	return items, nil
+type DepartmentStore struct {
+	db *sql.DB
 }
 
-func (s *Store) GetDepartmentById(id int64) (*Department, error) {
-	var item Department
+func NewDepartmentStore(db *sql.DB) *DepartmentStore {
+	return &DepartmentStore{db: db}
+}
+
+func (s *DepartmentStore) Get(id int64) (*Department, error) {
 	query := `
-		select id, company_id, name, created_at, updated_at
-		from department
-		where id = ?;
+		select	id,
+			company_id,
+			name,
+			created_at,
+			updated_at
+		from	department
+		where	id = ?;
 	`
 
+	var item Department
 	err := s.db.QueryRow(query, id).Scan(
 		&item.Id,
 		&item.CompanyId,
@@ -197,18 +202,43 @@ func (s *Store) GetDepartmentById(id int64) (*Department, error) {
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
-
 	if err != nil {
-		return &item, err
+		return nil, err
 	}
 
 	return &item, nil
 }
 
-func (s *Store) InsertDepartment(item *Department) (*Department, error) {
+func (s *DepartmentStore) Update(item *Department) error {
 	query := `
-		insert into department(company_id, name, created_at, updated_at)
-		values (?, ?, datetime(), datetime());
+		update	department
+		set	company_id = ?,
+			name = ?,
+			updated_at = datetime()
+		where	id = ?;
+	`
+
+	_, err := s.db.Exec(
+		query,
+		&item.CompanyId,
+		&item.Name,
+		item.Id,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *DepartmentStore) Insert(item *Department) (int64, error) {
+	query := `
+		insert into department(
+			company_id,
+			name
+		)
+		values (?, ?);
 	`
 
 	result, err := s.db.Exec(
@@ -218,40 +248,21 @@ func (s *Store) InsertDepartment(item *Department) (*Department, error) {
 	)
 
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 
-	return s.GetDepartmentById(id)
+	return id, nil
 }
 
-func (s *Store) UpdateDepartment(item *Department) (*Department, error) {
-	query := `
-		update department
-		set company_id = ?, name = ?, updated_at = datetime()
-	`
-
-	_, err := s.db.Exec(
-		query,
-		&item.CompanyId,
-		&item.Name,
-	)
-
-	if err != nil {
-		return item, err
-	}
-
-	return s.GetDepartmentById(item.Id)
-}
-
-func (s *Store) DeleteDepartment(id int) error {
+func (s *DepartmentStore) Delete(id int64) error {
 	query := `
 		delete from department
-		where id = ?
+		where id = ?;
 	`
 
 	_, err := s.db.Exec(query, id)
@@ -259,6 +270,69 @@ func (s *Store) DeleteDepartment(id int) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *DepartmentStore) GetMany(ids []int64) ([]*Department, error) {
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := `
+		select	id,
+			company_id,
+			name,
+			created_at,
+			updated_at
+		from	department
+		where	id in (%s);
+	`
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+
+	var results []*Department
+	rows, err := s.db.Query(query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var item Department
+		err = rows.Scan(
+			&item.Id,
+			&item.CompanyId,
+			&item.Name,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, &item)
+	}
+
+	return results, nil
+}
+
+func (s *DepartmentStore) UpdateMany(items []*Department) error {
+	// TOOD: complete body
+	return nil
+}
+
+func (s *DepartmentStore) InsertMany(items []*Department) ([]int64, error) {
+	// TOOD: complete body
+	var results []int64
+	return results, nil
+}
+
+func (s *DepartmentStore) DeleteMany(ids int64) error {
+	// TOOD: complete body
 	return nil
 }
 
@@ -271,55 +345,27 @@ type Employee struct {
 	UpdatedAt    string  `json:"updated_at"`
 }
 
-func (s *Store) GetEmployee() ([]*Employee, error) {
-	var items []*Employee
-	query := `
-		select id, department_id, name, email, created_at, updated_at
-		from employee;
-	`
-
-	rows, err := s.db.Query(query)
-	if err != nil {
-		return items, err
-	}
-
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(rows)
-
-	for rows.Next() {
-		var item Employee
-
-		err = rows.Scan(
-			&item.Id,
-			&item.DepartmentId,
-			&item.Name,
-			&item.Email,
-			&item.CreatedAt,
-			&item.UpdatedAt,
-		)
-
-		if err != nil {
-			return items, err
-		}
-
-		items = append(items, &item)
-	}
-
-	return items, nil
+type EmployeeStore struct {
+	db *sql.DB
 }
 
-func (s *Store) GetEmployeeById(id int64) (*Employee, error) {
-	var item Employee
+func NewEmployeeStore(db *sql.DB) *EmployeeStore {
+	return &EmployeeStore{db: db}
+}
+
+func (s *EmployeeStore) Get(id int64) (*Employee, error) {
 	query := `
-		select id, department_id, name, email, created_at, updated_at
-		from employee
-		where id = ?;
+		select	id,
+			department_id,
+			name,
+			email,
+			created_at,
+			updated_at
+		from	employee
+		where	id = ?;
 	`
 
+	var item Employee
 	err := s.db.QueryRow(query, id).Scan(
 		&item.Id,
 		&item.DepartmentId,
@@ -328,18 +374,46 @@ func (s *Store) GetEmployeeById(id int64) (*Employee, error) {
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
-
 	if err != nil {
-		return &item, err
+		return nil, err
 	}
 
 	return &item, nil
 }
 
-func (s *Store) InsertEmployee(item *Employee) (*Employee, error) {
+func (s *EmployeeStore) Update(item *Employee) error {
 	query := `
-		insert into employee(department_id, name, email, created_at, updated_at)
-		values (?, ?, ?, datetime(), datetime());
+		update	employee
+		set	department_id = ?,
+			name = ?,
+			email = ?,
+			updated_at = datetime()
+		where	id = ?;
+	`
+
+	_, err := s.db.Exec(
+		query,
+		&item.DepartmentId,
+		&item.Name,
+		&item.Email,
+		item.Id,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *EmployeeStore) Insert(item *Employee) (int64, error) {
+	query := `
+		insert into employee(
+			department_id,
+			name,
+			email
+		)
+		values (?, ?, ?);
 	`
 
 	result, err := s.db.Exec(
@@ -350,41 +424,21 @@ func (s *Store) InsertEmployee(item *Employee) (*Employee, error) {
 	)
 
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 
-	return s.GetEmployeeById(id)
+	return id, nil
 }
 
-func (s *Store) UpdateEmployee(item *Employee) (*Employee, error) {
-	query := `
-		update employee
-		set department_id = ?, name = ?, email = ?, updated_at = datetime()
-	`
-
-	_, err := s.db.Exec(
-		query,
-		&item.DepartmentId,
-		&item.Name,
-		&item.Email,
-	)
-
-	if err != nil {
-		return item, err
-	}
-
-	return s.GetEmployeeById(item.Id)
-}
-
-func (s *Store) DeleteEmployee(id int) error {
+func (s *EmployeeStore) Delete(id int64) error {
 	query := `
 		delete from employee
-		where id = ?
+		where id = ?;
 	`
 
 	_, err := s.db.Exec(query, id)
@@ -392,6 +446,71 @@ func (s *Store) DeleteEmployee(id int) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *EmployeeStore) GetMany(ids []int64) ([]*Employee, error) {
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := `
+		select	id,
+			department_id,
+			name,
+			email,
+			created_at,
+			updated_at
+		from	employee
+		where	id in (%s);
+	`
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+
+	var results []*Employee
+	rows, err := s.db.Query(query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var item Employee
+		err = rows.Scan(
+			&item.Id,
+			&item.DepartmentId,
+			&item.Name,
+			&item.Email,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, &item)
+	}
+
+	return results, nil
+}
+
+func (s *EmployeeStore) UpdateMany(items []*Employee) error {
+	// TOOD: complete body
+	return nil
+}
+
+func (s *EmployeeStore) InsertMany(items []*Employee) ([]int64, error) {
+	// TOOD: complete body
+	var results []int64
+	return results, nil
+}
+
+func (s *EmployeeStore) DeleteMany(ids int64) error {
+	// TOOD: complete body
 	return nil
 }
 
@@ -404,55 +523,27 @@ type EmployeeSalary struct {
 	UpdatedAt  string  `json:"updated_at"`
 }
 
-func (s *Store) GetEmployeeSalary() ([]*EmployeeSalary, error) {
-	var items []*EmployeeSalary
-	query := `
-		select id, employee_id, amount, currency, created_at, updated_at
-		from employee_salary;
-	`
-
-	rows, err := s.db.Query(query)
-	if err != nil {
-		return items, err
-	}
-
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(rows)
-
-	for rows.Next() {
-		var item EmployeeSalary
-
-		err = rows.Scan(
-			&item.Id,
-			&item.EmployeeId,
-			&item.Amount,
-			&item.Currency,
-			&item.CreatedAt,
-			&item.UpdatedAt,
-		)
-
-		if err != nil {
-			return items, err
-		}
-
-		items = append(items, &item)
-	}
-
-	return items, nil
+type EmployeeSalaryStore struct {
+	db *sql.DB
 }
 
-func (s *Store) GetEmployeeSalaryById(id int64) (*EmployeeSalary, error) {
-	var item EmployeeSalary
+func NewEmployeeSalaryStore(db *sql.DB) *EmployeeSalaryStore {
+	return &EmployeeSalaryStore{db: db}
+}
+
+func (s *EmployeeSalaryStore) Get(id int64) (*EmployeeSalary, error) {
 	query := `
-		select id, employee_id, amount, currency, created_at, updated_at
-		from employee_salary
-		where id = ?;
+		select	id,
+			employee_id,
+			amount,
+			currency,
+			created_at,
+			updated_at
+		from	employee_salary
+		where	id = ?;
 	`
 
+	var item EmployeeSalary
 	err := s.db.QueryRow(query, id).Scan(
 		&item.Id,
 		&item.EmployeeId,
@@ -461,18 +552,46 @@ func (s *Store) GetEmployeeSalaryById(id int64) (*EmployeeSalary, error) {
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
-
 	if err != nil {
-		return &item, err
+		return nil, err
 	}
 
 	return &item, nil
 }
 
-func (s *Store) InsertEmployeeSalary(item *EmployeeSalary) (*EmployeeSalary, error) {
+func (s *EmployeeSalaryStore) Update(item *EmployeeSalary) error {
 	query := `
-		insert into employee_salary(employee_id, amount, currency, created_at, updated_at)
-		values (?, ?, ?, datetime(), datetime());
+		update	employee_salary
+		set	employee_id = ?,
+			amount = ?,
+			currency = ?,
+			updated_at = datetime()
+		where	id = ?;
+	`
+
+	_, err := s.db.Exec(
+		query,
+		&item.EmployeeId,
+		&item.Amount,
+		&item.Currency,
+		item.Id,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *EmployeeSalaryStore) Insert(item *EmployeeSalary) (int64, error) {
+	query := `
+		insert into employee_salary(
+			employee_id,
+			amount,
+			currency
+		)
+		values (?, ?, ?);
 	`
 
 	result, err := s.db.Exec(
@@ -483,41 +602,21 @@ func (s *Store) InsertEmployeeSalary(item *EmployeeSalary) (*EmployeeSalary, err
 	)
 
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 
-	return s.GetEmployeeSalaryById(id)
+	return id, nil
 }
 
-func (s *Store) UpdateEmployeeSalary(item *EmployeeSalary) (*EmployeeSalary, error) {
-	query := `
-		update employee_salary
-		set employee_id = ?, amount = ?, currency = ?, updated_at = datetime()
-	`
-
-	_, err := s.db.Exec(
-		query,
-		&item.EmployeeId,
-		&item.Amount,
-		&item.Currency,
-	)
-
-	if err != nil {
-		return item, err
-	}
-
-	return s.GetEmployeeSalaryById(item.Id)
-}
-
-func (s *Store) DeleteEmployeeSalary(id int) error {
+func (s *EmployeeSalaryStore) Delete(id int64) error {
 	query := `
 		delete from employee_salary
-		where id = ?
+		where id = ?;
 	`
 
 	_, err := s.db.Exec(query, id)
@@ -525,5 +624,70 @@ func (s *Store) DeleteEmployeeSalary(id int) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *EmployeeSalaryStore) GetMany(ids []int64) ([]*EmployeeSalary, error) {
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := `
+		select	id,
+			employee_id,
+			amount,
+			currency,
+			created_at,
+			updated_at
+		from	employee_salary
+		where	id in (%s);
+	`
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+
+	var results []*EmployeeSalary
+	rows, err := s.db.Query(query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var item EmployeeSalary
+		err = rows.Scan(
+			&item.Id,
+			&item.EmployeeId,
+			&item.Amount,
+			&item.Currency,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, &item)
+	}
+
+	return results, nil
+}
+
+func (s *EmployeeSalaryStore) UpdateMany(items []*EmployeeSalary) error {
+	// TOOD: complete body
+	return nil
+}
+
+func (s *EmployeeSalaryStore) InsertMany(items []*EmployeeSalary) ([]int64, error) {
+	// TOOD: complete body
+	var results []int64
+	return results, nil
+}
+
+func (s *EmployeeSalaryStore) DeleteMany(ids int64) error {
+	// TOOD: complete body
 	return nil
 }
