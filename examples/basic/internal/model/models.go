@@ -2,6 +2,7 @@
 package model
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -22,7 +23,7 @@ func NewCompanyStore(db *sql.DB) *CompanyStore {
 	return &CompanyStore{db: db}
 }
 
-func (s *CompanyStore) Get(id int64) (*Company, error) {
+func (s *CompanyStore) GetById(ctx context.Context, id int64) (*Company, error) {
 	query := `
 		select	id,
 			name,
@@ -33,7 +34,7 @@ func (s *CompanyStore) Get(id int64) (*Company, error) {
 	`
 
 	var item Company
-	err := s.db.QueryRow(query, id).Scan(
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&item.Id,
 		&item.Name,
 		&item.CreatedAt,
@@ -46,7 +47,7 @@ func (s *CompanyStore) Get(id int64) (*Company, error) {
 	return &item, nil
 }
 
-func (s *CompanyStore) Update(item *Company) error {
+func (s *CompanyStore) UpdateById(ctx context.Context, item *Company) error {
 	query := `
 		update	company
 		set	name = ?,
@@ -54,7 +55,8 @@ func (s *CompanyStore) Update(item *Company) error {
 		where	id = ?;
 	`
 
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(
+		ctx,
 		query,
 		&item.Name,
 		item.Id,
@@ -67,7 +69,7 @@ func (s *CompanyStore) Update(item *Company) error {
 	return nil
 }
 
-func (s *CompanyStore) Insert(item *Company) (int64, error) {
+func (s *CompanyStore) Insert(ctx context.Context, item *Company) (int64, error) {
 	query := `
 		insert into company(
 			name
@@ -75,7 +77,8 @@ func (s *CompanyStore) Insert(item *Company) (int64, error) {
 		values (?);
 	`
 
-	result, err := s.db.Exec(
+	result, err := s.db.ExecContext(
+		ctx,
 		query,
 		&item.Name,
 	)
@@ -92,13 +95,13 @@ func (s *CompanyStore) Insert(item *Company) (int64, error) {
 	return id, nil
 }
 
-func (s *CompanyStore) Delete(id int64) error {
+func (s *CompanyStore) DeleteById(ctx context.Context, id int64) error {
 	query := `
 		delete from company
 		where id = ?;
 	`
 
-	_, err := s.db.Exec(query, id)
+	_, err := s.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -106,7 +109,7 @@ func (s *CompanyStore) Delete(id int64) error {
 	return nil
 }
 
-func (s *CompanyStore) GetMany(ids []int64) ([]*Company, error) {
+func (s *CompanyStore) GetMany(ctx context.Context, ids []int64) ([]*Company, error) {
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
 	for i, id := range ids {
@@ -126,7 +129,7 @@ func (s *CompanyStore) GetMany(ids []int64) ([]*Company, error) {
 	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
 
 	var results []*Company
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	defer rows.Close()
 	if err != nil {
 		return results, err
@@ -151,18 +154,57 @@ func (s *CompanyStore) GetMany(ids []int64) ([]*Company, error) {
 	return results, nil
 }
 
-func (s *CompanyStore) UpdateMany(items []*Company) error {
-	// TOOD: complete body
-	return nil
+func (s *CompanyStore) UpdateMany(ctx context.Context, ids []int64, item *Company) ([]int64, error) {
+	placeholders := make([]string, len(ids))
+	idArgs := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		idArgs[i] = id
+	}
+
+	query := `
+		update	company
+		set	name = ?,
+		updated_at = datetime()
+		where	id in (%s)
+		returning id;
+	`
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+	args := append(
+		[]any{
+			item.Name,
+		},
+		idArgs...,
+	)
+
+	var results []int64
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var id int64
+		err = rows.Scan(&id)
+		if err != nil {
+			return results, err
+		}
+
+		results = append(results, id)
+	}
+
+	return results, nil
 }
 
-func (s *CompanyStore) InsertMany(items []*Company) ([]int64, error) {
+func (s *CompanyStore) InsertMany(ctx context.Context, items []*Company) ([]int64, error) {
 	// TOOD: complete body
 	var results []int64
 	return results, nil
 }
 
-func (s *CompanyStore) DeleteMany(ids int64) error {
+func (s *CompanyStore) DeleteMany(ctx context.Context, ids []int64) error {
 	// TOOD: complete body
 	return nil
 }
@@ -183,7 +225,7 @@ func NewDepartmentStore(db *sql.DB) *DepartmentStore {
 	return &DepartmentStore{db: db}
 }
 
-func (s *DepartmentStore) Get(id int64) (*Department, error) {
+func (s *DepartmentStore) GetById(ctx context.Context, id int64) (*Department, error) {
 	query := `
 		select	id,
 			company_id,
@@ -195,7 +237,7 @@ func (s *DepartmentStore) Get(id int64) (*Department, error) {
 	`
 
 	var item Department
-	err := s.db.QueryRow(query, id).Scan(
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&item.Id,
 		&item.CompanyId,
 		&item.Name,
@@ -209,16 +251,17 @@ func (s *DepartmentStore) Get(id int64) (*Department, error) {
 	return &item, nil
 }
 
-func (s *DepartmentStore) Update(item *Department) error {
+func (s *DepartmentStore) UpdateById(ctx context.Context, item *Department) error {
 	query := `
 		update	department
 		set	company_id = ?,
-			name = ?,
+		name = ?,
 			updated_at = datetime()
 		where	id = ?;
 	`
 
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(
+		ctx,
 		query,
 		&item.CompanyId,
 		&item.Name,
@@ -232,7 +275,7 @@ func (s *DepartmentStore) Update(item *Department) error {
 	return nil
 }
 
-func (s *DepartmentStore) Insert(item *Department) (int64, error) {
+func (s *DepartmentStore) Insert(ctx context.Context, item *Department) (int64, error) {
 	query := `
 		insert into department(
 			company_id,
@@ -241,7 +284,8 @@ func (s *DepartmentStore) Insert(item *Department) (int64, error) {
 		values (?, ?);
 	`
 
-	result, err := s.db.Exec(
+	result, err := s.db.ExecContext(
+		ctx,
 		query,
 		&item.CompanyId,
 		&item.Name,
@@ -259,13 +303,13 @@ func (s *DepartmentStore) Insert(item *Department) (int64, error) {
 	return id, nil
 }
 
-func (s *DepartmentStore) Delete(id int64) error {
+func (s *DepartmentStore) DeleteById(ctx context.Context, id int64) error {
 	query := `
 		delete from department
 		where id = ?;
 	`
 
-	_, err := s.db.Exec(query, id)
+	_, err := s.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -273,7 +317,7 @@ func (s *DepartmentStore) Delete(id int64) error {
 	return nil
 }
 
-func (s *DepartmentStore) GetMany(ids []int64) ([]*Department, error) {
+func (s *DepartmentStore) GetMany(ctx context.Context, ids []int64) ([]*Department, error) {
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
 	for i, id := range ids {
@@ -294,7 +338,7 @@ func (s *DepartmentStore) GetMany(ids []int64) ([]*Department, error) {
 	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
 
 	var results []*Department
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	defer rows.Close()
 	if err != nil {
 		return results, err
@@ -320,18 +364,59 @@ func (s *DepartmentStore) GetMany(ids []int64) ([]*Department, error) {
 	return results, nil
 }
 
-func (s *DepartmentStore) UpdateMany(items []*Department) error {
-	// TOOD: complete body
-	return nil
+func (s *DepartmentStore) UpdateMany(ctx context.Context, ids []int64, item *Department) ([]int64, error) {
+	placeholders := make([]string, len(ids))
+	idArgs := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		idArgs[i] = id
+	}
+
+	query := `
+		update	department
+		set	company_id = ?,
+			name = ?,
+		updated_at = datetime()
+		where	id in (%s)
+		returning id;
+	`
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+	args := append(
+		[]any{
+			item.CompanyId,
+			item.Name,
+		},
+		idArgs...,
+	)
+
+	var results []int64
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var id int64
+		err = rows.Scan(&id)
+		if err != nil {
+			return results, err
+		}
+
+		results = append(results, id)
+	}
+
+	return results, nil
 }
 
-func (s *DepartmentStore) InsertMany(items []*Department) ([]int64, error) {
+func (s *DepartmentStore) InsertMany(ctx context.Context, items []*Department) ([]int64, error) {
 	// TOOD: complete body
 	var results []int64
 	return results, nil
 }
 
-func (s *DepartmentStore) DeleteMany(ids int64) error {
+func (s *DepartmentStore) DeleteMany(ctx context.Context, ids []int64) error {
 	// TOOD: complete body
 	return nil
 }
@@ -353,7 +438,7 @@ func NewEmployeeStore(db *sql.DB) *EmployeeStore {
 	return &EmployeeStore{db: db}
 }
 
-func (s *EmployeeStore) Get(id int64) (*Employee, error) {
+func (s *EmployeeStore) GetById(ctx context.Context, id int64) (*Employee, error) {
 	query := `
 		select	id,
 			department_id,
@@ -366,7 +451,7 @@ func (s *EmployeeStore) Get(id int64) (*Employee, error) {
 	`
 
 	var item Employee
-	err := s.db.QueryRow(query, id).Scan(
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&item.Id,
 		&item.DepartmentId,
 		&item.Name,
@@ -381,17 +466,18 @@ func (s *EmployeeStore) Get(id int64) (*Employee, error) {
 	return &item, nil
 }
 
-func (s *EmployeeStore) Update(item *Employee) error {
+func (s *EmployeeStore) UpdateById(ctx context.Context, item *Employee) error {
 	query := `
 		update	employee
 		set	department_id = ?,
-			name = ?,
-			email = ?,
+		name = ?,
+		email = ?,
 			updated_at = datetime()
 		where	id = ?;
 	`
 
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(
+		ctx,
 		query,
 		&item.DepartmentId,
 		&item.Name,
@@ -406,7 +492,7 @@ func (s *EmployeeStore) Update(item *Employee) error {
 	return nil
 }
 
-func (s *EmployeeStore) Insert(item *Employee) (int64, error) {
+func (s *EmployeeStore) Insert(ctx context.Context, item *Employee) (int64, error) {
 	query := `
 		insert into employee(
 			department_id,
@@ -416,7 +502,8 @@ func (s *EmployeeStore) Insert(item *Employee) (int64, error) {
 		values (?, ?, ?);
 	`
 
-	result, err := s.db.Exec(
+	result, err := s.db.ExecContext(
+		ctx,
 		query,
 		&item.DepartmentId,
 		&item.Name,
@@ -435,13 +522,13 @@ func (s *EmployeeStore) Insert(item *Employee) (int64, error) {
 	return id, nil
 }
 
-func (s *EmployeeStore) Delete(id int64) error {
+func (s *EmployeeStore) DeleteById(ctx context.Context, id int64) error {
 	query := `
 		delete from employee
 		where id = ?;
 	`
 
-	_, err := s.db.Exec(query, id)
+	_, err := s.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -449,7 +536,7 @@ func (s *EmployeeStore) Delete(id int64) error {
 	return nil
 }
 
-func (s *EmployeeStore) GetMany(ids []int64) ([]*Employee, error) {
+func (s *EmployeeStore) GetMany(ctx context.Context, ids []int64) ([]*Employee, error) {
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
 	for i, id := range ids {
@@ -471,7 +558,7 @@ func (s *EmployeeStore) GetMany(ids []int64) ([]*Employee, error) {
 	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
 
 	var results []*Employee
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	defer rows.Close()
 	if err != nil {
 		return results, err
@@ -498,18 +585,61 @@ func (s *EmployeeStore) GetMany(ids []int64) ([]*Employee, error) {
 	return results, nil
 }
 
-func (s *EmployeeStore) UpdateMany(items []*Employee) error {
-	// TOOD: complete body
-	return nil
+func (s *EmployeeStore) UpdateMany(ctx context.Context, ids []int64, item *Employee) ([]int64, error) {
+	placeholders := make([]string, len(ids))
+	idArgs := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		idArgs[i] = id
+	}
+
+	query := `
+		update	employee
+		set	department_id = ?,
+			name = ?,
+			email = ?,
+		updated_at = datetime()
+		where	id in (%s)
+		returning id;
+	`
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+	args := append(
+		[]any{
+			item.DepartmentId,
+			item.Name,
+			item.Email,
+		},
+		idArgs...,
+	)
+
+	var results []int64
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var id int64
+		err = rows.Scan(&id)
+		if err != nil {
+			return results, err
+		}
+
+		results = append(results, id)
+	}
+
+	return results, nil
 }
 
-func (s *EmployeeStore) InsertMany(items []*Employee) ([]int64, error) {
+func (s *EmployeeStore) InsertMany(ctx context.Context, items []*Employee) ([]int64, error) {
 	// TOOD: complete body
 	var results []int64
 	return results, nil
 }
 
-func (s *EmployeeStore) DeleteMany(ids int64) error {
+func (s *EmployeeStore) DeleteMany(ctx context.Context, ids []int64) error {
 	// TOOD: complete body
 	return nil
 }
@@ -531,7 +661,7 @@ func NewEmployeeSalaryStore(db *sql.DB) *EmployeeSalaryStore {
 	return &EmployeeSalaryStore{db: db}
 }
 
-func (s *EmployeeSalaryStore) Get(id int64) (*EmployeeSalary, error) {
+func (s *EmployeeSalaryStore) GetById(ctx context.Context, id int64) (*EmployeeSalary, error) {
 	query := `
 		select	id,
 			employee_id,
@@ -544,7 +674,7 @@ func (s *EmployeeSalaryStore) Get(id int64) (*EmployeeSalary, error) {
 	`
 
 	var item EmployeeSalary
-	err := s.db.QueryRow(query, id).Scan(
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&item.Id,
 		&item.EmployeeId,
 		&item.Amount,
@@ -559,17 +689,18 @@ func (s *EmployeeSalaryStore) Get(id int64) (*EmployeeSalary, error) {
 	return &item, nil
 }
 
-func (s *EmployeeSalaryStore) Update(item *EmployeeSalary) error {
+func (s *EmployeeSalaryStore) UpdateById(ctx context.Context, item *EmployeeSalary) error {
 	query := `
 		update	employee_salary
 		set	employee_id = ?,
-			amount = ?,
-			currency = ?,
+		amount = ?,
+		currency = ?,
 			updated_at = datetime()
 		where	id = ?;
 	`
 
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(
+		ctx,
 		query,
 		&item.EmployeeId,
 		&item.Amount,
@@ -584,7 +715,7 @@ func (s *EmployeeSalaryStore) Update(item *EmployeeSalary) error {
 	return nil
 }
 
-func (s *EmployeeSalaryStore) Insert(item *EmployeeSalary) (int64, error) {
+func (s *EmployeeSalaryStore) Insert(ctx context.Context, item *EmployeeSalary) (int64, error) {
 	query := `
 		insert into employee_salary(
 			employee_id,
@@ -594,7 +725,8 @@ func (s *EmployeeSalaryStore) Insert(item *EmployeeSalary) (int64, error) {
 		values (?, ?, ?);
 	`
 
-	result, err := s.db.Exec(
+	result, err := s.db.ExecContext(
+		ctx,
 		query,
 		&item.EmployeeId,
 		&item.Amount,
@@ -613,13 +745,13 @@ func (s *EmployeeSalaryStore) Insert(item *EmployeeSalary) (int64, error) {
 	return id, nil
 }
 
-func (s *EmployeeSalaryStore) Delete(id int64) error {
+func (s *EmployeeSalaryStore) DeleteById(ctx context.Context, id int64) error {
 	query := `
 		delete from employee_salary
 		where id = ?;
 	`
 
-	_, err := s.db.Exec(query, id)
+	_, err := s.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -627,7 +759,7 @@ func (s *EmployeeSalaryStore) Delete(id int64) error {
 	return nil
 }
 
-func (s *EmployeeSalaryStore) GetMany(ids []int64) ([]*EmployeeSalary, error) {
+func (s *EmployeeSalaryStore) GetMany(ctx context.Context, ids []int64) ([]*EmployeeSalary, error) {
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
 	for i, id := range ids {
@@ -649,7 +781,7 @@ func (s *EmployeeSalaryStore) GetMany(ids []int64) ([]*EmployeeSalary, error) {
 	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
 
 	var results []*EmployeeSalary
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	defer rows.Close()
 	if err != nil {
 		return results, err
@@ -676,18 +808,61 @@ func (s *EmployeeSalaryStore) GetMany(ids []int64) ([]*EmployeeSalary, error) {
 	return results, nil
 }
 
-func (s *EmployeeSalaryStore) UpdateMany(items []*EmployeeSalary) error {
-	// TOOD: complete body
-	return nil
+func (s *EmployeeSalaryStore) UpdateMany(ctx context.Context, ids []int64, item *EmployeeSalary) ([]int64, error) {
+	placeholders := make([]string, len(ids))
+	idArgs := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		idArgs[i] = id
+	}
+
+	query := `
+		update	employee_salary
+		set	employee_id = ?,
+			amount = ?,
+			currency = ?,
+		updated_at = datetime()
+		where	id in (%s)
+		returning id;
+	`
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+	args := append(
+		[]any{
+			item.EmployeeId,
+			item.Amount,
+			item.Currency,
+		},
+		idArgs...,
+	)
+
+	var results []int64
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var id int64
+		err = rows.Scan(&id)
+		if err != nil {
+			return results, err
+		}
+
+		results = append(results, id)
+	}
+
+	return results, nil
 }
 
-func (s *EmployeeSalaryStore) InsertMany(items []*EmployeeSalary) ([]int64, error) {
+func (s *EmployeeSalaryStore) InsertMany(ctx context.Context, items []*EmployeeSalary) ([]int64, error) {
 	// TOOD: complete body
 	var results []int64
 	return results, nil
 }
 
-func (s *EmployeeSalaryStore) DeleteMany(ids int64) error {
+func (s *EmployeeSalaryStore) DeleteMany(ctx context.Context, ids []int64) error {
 	// TOOD: complete body
 	return nil
 }

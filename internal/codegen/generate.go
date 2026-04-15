@@ -266,11 +266,6 @@ var genTmpl = `
 // DO NOT EDIT! GENERATED CODE!
 package {{ .PackageName }}
 
-import (
-	"database/sql"
-	"error"
-)
-
 {{ range $schema := .Schemas }}
 {{ $schemaPascal := $schema.Name | pascalCase }}
 
@@ -287,7 +282,7 @@ func New{{ $schemaPascal }}Store(db *sql.DB) *{{ $schemaPascal }}Store {
 	return &{{ $schemaPascal }}Store{db: db}
 }
 
-func (s *{{ $schemaPascal }}Store) Get(id int64) (*{{ $schemaPascal }}, error) {
+func (s *{{ $schemaPascal }}Store) GetById(ctx context.Context, id int64) (*{{ $schemaPascal }}, error) {
 	query := {{ backtick }}
 		select	{{ join ($schema.Columns | columnNames) ",\n\t\t\t" }}
 		from	{{ $schema.Name }}
@@ -295,7 +290,7 @@ func (s *{{ $schemaPascal }}Store) Get(id int64) (*{{ $schemaPascal }}, error) {
 	{{ backtick }}
 
 	var item {{ $schemaPascal }}
-	err := s.db.QueryRow(query, id).Scan(
+	err := s.db.QueryRowContext(ctx, query, id).Scan(
 	{{ range $column := $schema.Columns -}}
 		&item.{{ $column.Name | pascalCase }},
 	{{ end }})
@@ -306,15 +301,16 @@ func (s *{{ $schemaPascal }}Store) Get(id int64) (*{{ $schemaPascal }}, error) {
 	return &item, nil
 }
 
-func (s *{{ $schemaPascal }}Store) Update(item *{{ $schemaPascal }}) error {
+func (s *{{ $schemaPascal }}Store) UpdateById(ctx context.Context, item *{{ $schemaPascal }}) error {
 	query := {{ backtick }}
 		update	{{ $schema.Name }}
-		set	{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") " = ?,\n\t\t\t" }} = ?,
+		set	{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") " = ?,\n\t\t" }} = ?,
 			updated_at = datetime()
 		where	id = ?;
 	{{ backtick }}
 
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(
+		ctx,
 		query, 	{{ range $columnName := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}
 		&item.{{ $columnName | pascalCase }},
 		{{- end }}
@@ -328,7 +324,7 @@ func (s *{{ $schemaPascal }}Store) Update(item *{{ $schemaPascal }}) error {
 	return nil
 }
 
-func (s *{{ $schemaPascal }}Store) Insert(item *{{ $schemaPascal }}) (int64, error) {
+func (s *{{ $schemaPascal }}Store) Insert(ctx context.Context, item *{{ $schemaPascal }}) (int64, error) {
 	query := {{ backtick }}
 		insert into {{ $schema.Name }}(
 			{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") ",\n\t\t\t"}}
@@ -336,7 +332,8 @@ func (s *{{ $schemaPascal }}Store) Insert(item *{{ $schemaPascal }}) (int64, err
 		values ({{ range $index, $column := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}{{ if gt $index 0 }}, {{ end }}?{{ end }});
 	{{ backtick }}
 
-	result, err := s.db.Exec(
+	result, err := s.db.ExecContext(
+		ctx,
 		query, 	{{ range $columnName := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}
 		&item.{{ $columnName | pascalCase }},
 		{{- end }}
@@ -354,13 +351,13 @@ func (s *{{ $schemaPascal }}Store) Insert(item *{{ $schemaPascal }}) (int64, err
 	return id, nil
 }
 
-func (s *{{ $schemaPascal }}Store) Delete(id int64) error {
+func (s *{{ $schemaPascal }}Store) DeleteById(ctx context.Context, id int64) error {
 	query := {{ backtick }}
 		delete from {{ $schema.Name }}
 		where id = ?;
 	{{ backtick }}
 
-	_, err := s.db.Exec(query, id)
+	_, err := s.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -368,7 +365,7 @@ func (s *{{ $schemaPascal }}Store) Delete(id int64) error {
 	return nil
 }
 
-func (s *{{ $schemaPascal }}Store) GetMany(ids []int64) ([]*{{ $schemaPascal }}, error) {
+func (s *{{ $schemaPascal }}Store) GetMany(ctx context.Context, ids []int64) ([]*{{ $schemaPascal }}, error) {
 	placeholders := make([]string, len(ids))
 	args := make([]any, len(ids))
 	for i, id := range ids  {
@@ -385,7 +382,7 @@ func (s *{{ $schemaPascal }}Store) GetMany(ids []int64) ([]*{{ $schemaPascal }},
 	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
 
 	var results []*{{ $schemaPascal }}
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	defer rows.Close()
 	if err != nil {
 		return results, err
@@ -408,18 +405,59 @@ func (s *{{ $schemaPascal }}Store) GetMany(ids []int64) ([]*{{ $schemaPascal }},
 	return results, nil
 }
 
-func (s *{{ $schemaPascal }}Store) UpdateMany(items []*{{ $schemaPascal }}) error {
-	// TOOD: complete body
-	return nil
+func (s *{{ $schemaPascal }}Store) UpdateMany(ctx context.Context, ids []int64, item *{{ $schemaPascal }}) ([]int64, error) {
+	placeholders := make([]string, len(ids))
+	idArgs := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		idArgs[i] = id
+	}
+
+	query := {{ backtick }}
+		update	{{ $schema.Name }}
+		set	{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") " = ?,\n\t\t" }} = ?,
+		updated_at = datetime()
+		where	id in (%s)
+		returning id;
+	{{ backtick }}
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+	args := append(
+		[]any{
+			{{- range $columnName := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}
+		item.{{ $columnName | pascalCase }},
+		{{- end }}
+		},
+		idArgs...,
+	)
+
+	var results []int64
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	defer rows.Close()
+	if err != nil {
+		return results, err
+	}
+
+	for rows.Next() {
+		var id int64
+		err = rows.Scan(&id)
+		if err != nil {
+			return results, err
+		}
+
+		results = append(results, id)
+	}
+
+	return results, nil
 }
 
-func (s *{{ $schemaPascal }}Store) InsertMany(items []*{{ $schemaPascal }}) ([]int64, error) {
+func (s *{{ $schemaPascal }}Store) InsertMany(ctx context.Context, items []*{{ $schemaPascal }}) ([]int64, error) {
 	// TOOD: complete body
 	var results []int64
 	return results, nil
 }
 
-func (s *{{ $schemaPascal }}Store) DeleteMany(ids int64) error {
+func (s *{{ $schemaPascal }}Store) DeleteMany(ctx context.Context, ids []int64) error {
 	// TOOD: complete body
 	return nil
 }
