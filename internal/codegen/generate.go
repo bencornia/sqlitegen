@@ -406,59 +406,33 @@ func (s *{{ $schemaPascal }}Store) GetMany(ctx context.Context, ids []int64) ([]
 }
 
 func (s *{{ $schemaPascal }}Store) UpdateMany(ctx context.Context, ids []int64, item *{{ $schemaPascal }}) ([]int64, error) {
-	placeholders := make([]string, len(ids))
-	idArgs := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		idArgs[i] = id
-	}
-
-	query := {{ backtick }}
-		update	{{ $schema.Name }}
-		set	{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") " = ?,\n\t\t" }} = ?,
-		updated_at = datetime()
-		where	id in (%s)
-		returning id;
-	{{ backtick }}
-
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-	args := append(
-		[]any{
-			{{- range $columnName := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}
-		item.{{ $columnName | pascalCase }},
-		{{- end }}
-		},
-		idArgs...,
-	)
-
-	var results []int64
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	defer rows.Close()
-	if err != nil {
-		return results, err
-	}
-
-	for rows.Next() {
-		var id int64
-		err = rows.Scan(&id)
-		if err != nil {
-			return results, err
-		}
-
-		results = append(results, id)
-	}
-
-	return results, nil
+	// TODO:
 }
 
 func (s *{{ $schemaPascal }}Store) InsertMany(ctx context.Context, items []*{{ $schemaPascal }}) ([]int64, error) {
-	// TOOD: complete body
-	var results []int64
-	return results, nil
+	// TODO:
 }
 
 func (s *{{ $schemaPascal }}Store) DeleteMany(ctx context.Context, ids []int64) error {
-	// TOOD: complete body
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := {{ backtick }}
+		delete from {{ $schema.Name }}
+		where id in (%s);
+	{{ backtick }}
+
+	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
+
+	_, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	
 	return nil
 }
 
