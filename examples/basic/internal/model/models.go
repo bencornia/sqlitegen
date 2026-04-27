@@ -75,7 +75,9 @@ func (s *CompanyStore) Insert(ctx context.Context, item *Company) (int64, error)
 			name
 		)
 		values (
-			?
+			?,
+			datetime(),
+			datetime()
 		);
 	`
 
@@ -186,7 +188,9 @@ func (s *CompanyStore) InsertTx(ctx context.Context, tx *sql.Tx, item *Company) 
 			name
 		)
 		values (
-			?
+			?,
+			datetime(),
+			datetime()
 		);
 	`
 
@@ -445,7 +449,9 @@ func (s *DepartmentStore) Insert(ctx context.Context, item *Department) (int64, 
 		)
 		values (
 			?,
-			?
+			?,
+			datetime(),
+			datetime()
 		);
 	`
 
@@ -563,7 +569,9 @@ func (s *DepartmentStore) InsertTx(ctx context.Context, tx *sql.Tx, item *Depart
 		)
 		values (
 			?,
-			?
+			?,
+			datetime(),
+			datetime()
 		);
 	`
 
@@ -836,7 +844,9 @@ func (s *EmployeeStore) Insert(ctx context.Context, item *Employee) (int64, erro
 		values (
 			?,
 			?,
-			?
+			?,
+			datetime(),
+			datetime()
 		);
 	`
 
@@ -961,7 +971,9 @@ func (s *EmployeeStore) InsertTx(ctx context.Context, tx *sql.Tx, item *Employee
 		values (
 			?,
 			?,
-			?
+			?,
+			datetime(),
+			datetime()
 		);
 	`
 
@@ -1241,7 +1253,9 @@ func (s *EmployeeSalaryStore) Insert(ctx context.Context, item *EmployeeSalary) 
 		values (
 			?,
 			?,
-			?
+			?,
+			datetime(),
+			datetime()
 		);
 	`
 
@@ -1366,7 +1380,9 @@ func (s *EmployeeSalaryStore) InsertTx(ctx context.Context, tx *sql.Tx, item *Em
 		values (
 			?,
 			?,
-			?
+			?,
+			datetime(),
+			datetime()
 		);
 	`
 
