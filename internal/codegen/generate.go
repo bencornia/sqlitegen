@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"text/template"
-	"unicode"
 
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/tools/imports"
@@ -83,21 +82,22 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 		}
 
 		// Ensure that the columns include id, updated_at, created_at
-		hasPrimaryKey := false
-		hasUpdatedAt := false
-		hasCreatedAt := false
+		missingPrimaryKey := true
+		missingUpdatedAt := true
+		missingCreatedAt := true
 		for _, col := range s.Columns {
 			switch col.Name {
 			case "id":
-				hasPrimaryKey = col.IsPrimaryKey
+				missingPrimaryKey = !col.IsPrimaryKey
 			case "updated_at":
-				hasUpdatedAt = true
+				missingUpdatedAt = false
 			case "created_at":
-				hasCreatedAt = true
+				missingCreatedAt = false
 			}
 		}
 
-		if !(hasPrimaryKey && hasUpdatedAt && hasCreatedAt) {
+		isMissingFields := missingPrimaryKey || missingUpdatedAt || missingCreatedAt
+		if isMissingFields {
 			continue
 		}
 
@@ -113,137 +113,15 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 
 	// Step 4) Register template functions
 	funcs := template.FuncMap{
-		"getTag": func(col *column) string {
-			return fmt.Sprintf("`json:\"%s\"`", col.Name)
-		},
-		// PascalCase
-		"pascalCase": func(val string) string {
-			var (
-				result = ""
-				runes  = []rune(val)
-				i      = 0
-				upper  = false
-			)
-
-			for i < len(runes) {
-				if runes[i] == '_' {
-					i++
-					upper = true
-					continue
-				}
-
-				char := runes[i]
-				if i == 0 || (runes[i-1] == '_' && upper) {
-					char = unicode.ToUpper(char)
-				}
-
-				result += string(char)
-				i++
-				upper = false
-			}
-
-			return result
-		},
-		// camelCase
-		"camelCase": func(val string) string {
-			var (
-				result = ""
-				runes  = []rune(val)
-				i      = 0
-				upper  = false
-			)
-
-			for i < len(runes) {
-				if runes[i] == '_' {
-					i++
-					upper = true
-					continue
-				}
-
-				char := runes[i]
-				if upper && runes[i-1] == '_' {
-					char = unicode.ToUpper(char)
-				}
-
-				result += string(char)
-				i++
-				upper = false
-			}
-
-			return result
-		},
-		"getType": func(col *column) string {
-			var dataType string
-			switch col.Type {
-			case "TEXT":
-				dataType = "string"
-			case "INTEGER":
-				dataType = "int64"
-			case "REAL":
-				dataType = "float64"
-			case "BLOB":
-				return "[]bytes"
-			case "NULL":
-				return "{}interface"
-			}
-
-			if col.IsPrimaryKey {
-				return dataType
-			}
-
-			if !col.NotNull {
-				return fmt.Sprintf("*%s", dataType)
-			}
-
-			return dataType
-		},
-		"columnNames": func(cols []*column) []string {
-			var items []string
-			for _, col := range cols {
-				items = append(items, col.Name)
-			}
-
-			return items
-		},
-		"join": func(items []string, sep string) string {
-			var result string
-			for i, item := range items {
-				if i > 0 {
-					result += sep
-				}
-
-				result += item
-			}
-
-			return result
-		},
-		"map": func(items []string, val string) []string {
-			var result []string
-			for range items {
-				result = append(result, val)
-			}
-			return result
-		},
-		"filter": func(items []string, excluded ...string) []string {
-			var result []string
-			for _, item := range items {
-				match := false
-				for _, ex := range excluded {
-					if ex == item {
-						match = true
-					}
-				}
-
-				if !match {
-					result = append(result, item)
-				}
-			}
-
-			return result
-		},
-		"backtick": func() string {
-			return "`"
-		},
+		"getTag":      getTag,
+		"pascalCase":  pascalCase,
+		"camelCase":   camelCase,
+		"getType":     getType,
+		"columnNames": columnNames,
+		"join":        join,
+		"map":         mapItems,
+		"filter":      filterItems,
+		"backtick":    backtick,
 	}
 
 	// Step 5) Execute template
