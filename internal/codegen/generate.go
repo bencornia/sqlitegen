@@ -118,7 +118,7 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 		"camelCase":   camelCase,
 		"getType":     getType,
 		"columnNames": columnNames,
-		"join":        join,
+		"join":        joinItems,
 		"map":         mapItems,
 		"filter":      filterItems,
 		"backtick":    backtick,

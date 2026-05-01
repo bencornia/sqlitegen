@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 )
 
@@ -12,7 +13,7 @@ func getTag(col *column) string {
 func pascalCase(val string) string {
 	var (
 		result = ""
-		runes  = []rune(val)
+		runes  = []rune(strings.ToLower(val))
 		i      = 0
 		upper  = false
 	)
@@ -38,31 +39,15 @@ func pascalCase(val string) string {
 }
 
 func camelCase(val string) string {
-	var (
-		result = ""
-		runes  = []rune(val)
-		i      = 0
-		upper  = false
-	)
-
-	for i < len(runes) {
-		if runes[i] == '_' {
-			i++
-			upper = true
-			continue
-		}
-
-		char := runes[i]
-		if upper && runes[i-1] == '_' {
-			char = unicode.ToUpper(char)
-		}
-
-		result += string(char)
-		i++
-		upper = false
+	pc := pascalCase(val)
+	if len(pc) == 0 {
+		return pc
 	}
 
-	return result
+	runes := []rune(pc)
+	runes[0] = unicode.ToLower(runes[0])
+
+	return string(runes)
 }
 
 func getType(col *column) string {
@@ -100,7 +85,7 @@ func columnNames(cols []*column) []string {
 	return items
 }
 
-func join(items []string, sep string) string {
+func joinItems(items []string, sep string) string {
 	var result string
 	for i, item := range items {
 		if i > 0 {
