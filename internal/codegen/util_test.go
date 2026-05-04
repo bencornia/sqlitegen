@@ -251,7 +251,9 @@ func TestGetType(t *testing.T) {
 		t.Fatalf("Failed to open sqlite in memory connection")
 	}
 
-	_, err = db.Exec("create table employee(id integer primary key, name text, salary real, profile_photo blob, )")
+	_, err = db.Exec(`
+		create table employee(id integer primary key, name text, salary real, profile_photo blob, foo any) strict;
+	`)
 	if err != nil {
 		t.Fatalf("Failed to create table")
 	}
