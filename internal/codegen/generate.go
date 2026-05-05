@@ -39,7 +39,7 @@ func catchClosable(c closable) {
 	catch(c.Close())
 }
 
-func isSchemaValid(db *sql.DB, tableName string) (bool, error) {
+func isValidSchema(db *sql.DB, tableName string) (bool, error) {
 	query := fmt.Sprintf(`
 		with flags as (
 			select
@@ -71,7 +71,8 @@ func isSchemaValid(db *sql.DB, tableName string) (bool, error) {
 						and type = 'TEXT'
 				) as has_valid_updated_at
 		)
-		select has_not_null_columns
+		select is_strict_table
+			and has_not_null_columns
 			and has_valid_pk
 			and has_valid_created_at
 			and has_valid_updated_at
@@ -99,7 +100,7 @@ func getSchemas(db *sql.DB) ([]*schema, error) {
 			return nil, err
 		}
 
-		ok, err := isSchemaValid(db, tableName)
+		ok, err := isValidSchema(db, tableName)
 		if err != nil {
 			return nil, err
 		}
