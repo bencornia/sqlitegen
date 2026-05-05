@@ -2,7 +2,6 @@ package codegen
 
 import (
 	"database/sql"
-	"fmt"
 	"testing"
 )
 
@@ -101,11 +100,45 @@ func TestIsValidSchema(t *testing.T) {
 			if ok != tc.expected {
 				t.Errorf("expected %v got %v for %s", tc.expected, ok, tc.tableName)
 			}
+		}()
+	}
+}
 
-			_, err = db.Exec(fmt.Sprintf("drop table %s;", tc.tableName))
+func TestGetSchemas(t *testing.T) {
+	testCases := []struct {
+		sql      string
+		expected []*column
+	}{
+		{
+			sql:      ``,
+			expected: []*column{},
+		},
+	}
+
+	for _, tc := range testCases {
+		func() {
+			db, err := sql.Open("sqlite3", ":memory:")
 			if err != nil {
-				t.Fatalf("the drop statement for [%s] failed with %s", tc.tableName, err.Error())
+				t.Fatalf("failed to open in memory database: %s", err.Error())
 			}
+
+			defer db.Close()
+
+			_, err = db.Exec(tc.sql)
+			if err != nil {
+				t.Fatalf("failed to execute query: %s", err.Error())
+			}
+
+			schemas, err := getSchemas(db)
+			if err != nil {
+				t.Fatalf("failed to getSchemas: %s", err.Error())
+			}
+
+			if len(schemas) != len(tc.expected) {
+				t.Fatalf("got len(schemas) %d but got %d", len(schemas), len(tc.expected))
+			}
+
+			// TODO: Do deep comparison of each column
 		}()
 	}
 }
