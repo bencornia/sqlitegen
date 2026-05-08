@@ -267,14 +267,6 @@ func TestGetSchemas(t *testing.T) {
 	}
 }
 
-func TestGetColumns(t *testing.T) {
-	// TODO:
-}
-
-func TestGetTableNames(t *testing.T) {
-	// TODO:
-}
-
 func TestGetType(t *testing.T) {
 	testCases := []struct {
 		name     string
