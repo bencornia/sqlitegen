@@ -68,7 +68,7 @@ func getType(col *column) string {
 	case "ANY":
 		return "any"
 	default:
-		panic("Unknown datatype")
+		panic("unknown datatype")
 	}
 
 	return dataType

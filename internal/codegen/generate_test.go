@@ -112,6 +112,28 @@ func TestIsValidSchema(t *testing.T) {
 	}
 }
 
+func columnDeepEqual(t *testing.T, a *column, b *column) bool {
+	t.Helper()
+	return a.IsPrimaryKey == b.IsPrimaryKey &&
+		strings.Compare(a.Name, b.Name) == 0 &&
+		a.NotNull == b.NotNull &&
+		strings.Compare(a.Type, b.Type) == 0
+}
+
+func schemaDeepEqual(t *testing.T, a *schema, b *schema) bool {
+	t.Helper()
+	if len(a.Columns) != len(b.Columns) {
+		return false
+	}
+
+	columnsEqual := true
+	for i := range len(a.Columns) {
+		columnsEqual = columnsEqual && columnDeepEqual(t, a.Columns[i], b.Columns[i])
+	}
+
+	return columnsEqual
+}
+
 func TestGetSchemas(t *testing.T) {
 	testCases := []struct {
 		name    string
@@ -212,27 +234,6 @@ func TestGetSchemas(t *testing.T) {
 		},
 	}
 
-	// TODO: Add tests for these helpers???
-	columnDeepEqual := func(a *column, b *column) bool {
-		return a.IsPrimaryKey == b.IsPrimaryKey &&
-			strings.Compare(a.Name, b.Name) == 0 &&
-			a.NotNull == b.NotNull &&
-			strings.Compare(a.Type, b.Type) == 0
-	}
-
-	schemaDeepEqual := func(a *schema, b *schema) bool {
-		if len(a.Columns) != len(b.Columns) {
-			return false
-		}
-
-		columnsEqual := true
-		for i := range len(a.Columns) {
-			columnsEqual = columnsEqual && columnDeepEqual(a.Columns[i], b.Columns[i])
-		}
-
-		return columnsEqual
-	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			db, err := sql.Open("sqlite3", ":memory:")
@@ -258,7 +259,7 @@ func TestGetSchemas(t *testing.T) {
 			}
 
 			for i := range len(schemas) {
-				if !schemaDeepEqual(schemas[i], tc.schemas[i]) {
+				if !schemaDeepEqual(t, schemas[i], tc.schemas[i]) {
 					t.Errorf("expected schema for [%s] does not match actual", tc.schemas[i].Name)
 				}
 			}
@@ -272,4 +273,93 @@ func TestGetColumns(t *testing.T) {
 
 func TestGetTableNames(t *testing.T) {
 	// TODO:
+}
+
+func TestGetType(t *testing.T) {
+	testCases := []struct {
+		name     string
+		col      column
+		expected string
+	}{
+		{
+			name:     "IntType",
+			col:      column{Name: "foo", Type: "INT", NotNull: true, IsPrimaryKey: false},
+			expected: "int64",
+		},
+		{
+			name:     "IntegerType",
+			col:      column{Name: "foo", Type: "INTEGER", NotNull: true, IsPrimaryKey: false},
+			expected: "int64",
+		},
+		{
+			name:     "RealType",
+			col:      column{Name: "foo", Type: "REAL", NotNull: true, IsPrimaryKey: false},
+			expected: "float64",
+		},
+		{
+			name:     "TextType",
+			col:      column{Name: "foo", Type: "TEXT", NotNull: true, IsPrimaryKey: false},
+			expected: "string",
+		},
+		{
+			name:     "BlobType",
+			col:      column{Name: "foo", Type: "BLOB", NotNull: true, IsPrimaryKey: false},
+			expected: "[]bytes",
+		},
+		{
+			name:     "AnyType",
+			col:      column{Name: "foo", Type: "ANY", NotNull: true, IsPrimaryKey: false},
+			expected: "any",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			colType := getType(&tc.col)
+			if strings.Compare(colType, tc.expected) != 0 {
+				t.Errorf("expected [%s] but got [%s]", tc.expected, colType)
+			}
+		})
+	}
+}
+
+func TestGetTypePanics(t *testing.T) {
+	testCases := []struct {
+		name     string
+		col      column
+		expected string
+	}{
+		{
+			name:     "NullColumnPanics",
+			col:      column{Name: "foo", Type: "TEXT", NotNull: false, IsPrimaryKey: false},
+			expected: "columns must be not null",
+		},
+		{
+			name:     "UnknownTypePanics",
+			col:      column{Name: "foo", Type: "SOME_UNKNOWN_TYPE", NotNull: true, IsPrimaryKey: false},
+			expected: "unknown datatype",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				tc := tc
+				r := recover()
+				if r == nil {
+					t.Fatalf("expected panic but none occurred")
+				}
+
+				msg, ok := r.(string)
+				if !ok {
+					t.Fatalf("an unkown panic occurred: %v", r)
+				}
+
+				if strings.Compare(msg, tc.expected) != 0 {
+					t.Errorf("expected [%s] but got [%s]", tc.expected, msg)
+				}
+			}()
+			getType(&tc.col)
+		})
+	}
 }

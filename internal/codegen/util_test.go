@@ -1,7 +1,6 @@
 package codegen
 
 import (
-	"database/sql"
 	"strings"
 	"testing"
 )
@@ -279,81 +278,5 @@ func TestFilterItems(t *testing.T) {
 func TestBacktick(t *testing.T) {
 	if strings.Compare("`", backtick()) != 0 {
 		t.Errorf("backtick() does not return `")
-	}
-}
-
-func TestGetType(t *testing.T) {
-	testCases := []struct {
-		name     string
-		sql      string
-		expected string
-	}{
-		{
-			name:     "IntType",
-			sql:      "create table foo(a int not null)",
-			expected: "int64",
-		},
-		{
-			name:     "IntegerType",
-			sql:      "create table foo(a integer not null)",
-			expected: "int64",
-		},
-		{
-			name:     "RealType",
-			sql:      "create table foo(a real not null)",
-			expected: "float64",
-		},
-		{
-			name:     "TextType",
-			sql:      "create table foo(a text not null)",
-			expected: "string",
-		},
-		{
-			name:     "BlobType",
-			sql:      "create table foo(a blob not null)",
-			expected: "[]bytes",
-		},
-		{
-			name:     "AnyType",
-			sql:      "create table foo(a any not null)",
-			expected: "any",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			db, err := sql.Open("sqlite3", ":memory:")
-			if err != nil {
-				t.Fatalf("Failed to open database: %s", err.Error())
-			}
-
-			defer catchClosable(db)
-
-			_, err = db.Exec(tc.sql)
-			if err != nil {
-				t.Fatalf("Failed to create table: %s", err.Error())
-			}
-
-			columns, err := getColumns(db, "foo")
-			if err != nil {
-				t.Fatalf("Failed to get columns: %s", err.Error())
-			}
-
-			if len(columns) != 1 {
-				t.Fatalf("testcase should have exactly one column")
-			}
-
-			col := columns[0]
-
-			// TODO: I think we should assert that a panic happens
-			if !col.NotNull {
-				t.Fatalf("column must be not null")
-			}
-
-			colType := getType(col)
-			if strings.Compare(colType, tc.expected) != 0 {
-				t.Errorf("expected [%s] but got [%s]", tc.expected, colType)
-			}
-		})
 	}
 }
