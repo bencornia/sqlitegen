@@ -119,6 +119,11 @@ func TestGetSchemas(t *testing.T) {
 		schemas []*schema
 	}{
 		{
+			name:    "NoSchemas",
+			sql:     ``,
+			schemas: []*schema{},
+		},
+		{
 			name: "IsValid",
 			sql: `
 				create table foo(
@@ -153,7 +158,58 @@ func TestGetSchemas(t *testing.T) {
 				},
 			},
 		},
-		// TODO: Add more testcases
+		{
+			name: "OneInvalidSchema",
+			sql: `
+				create table foo(
+					id integer primary key not null,
+					updated_at text not null,
+					created_at text not null
+				);
+			`,
+			schemas: []*schema{},
+		},
+		{
+			name: "MixedValidity",
+			sql: `
+				create table foo(
+					id integer primary key not null,
+					updated_at text not null,
+					created_at text not null
+				) strict;
+
+				create table bar(
+					id integer primary key not null,
+					updated_at text not null,
+					created_at text not null
+				);
+			`,
+			schemas: []*schema{
+				{
+					Name: "foo",
+					Columns: []*column{
+						{
+							Name:         "id",
+							NotNull:      true,
+							IsPrimaryKey: true,
+							Type:         "INTEGER",
+						},
+						{
+							Name:         "updated_at",
+							NotNull:      true,
+							IsPrimaryKey: false,
+							Type:         "TEXT",
+						},
+						{
+							Name:         "created_at",
+							NotNull:      true,
+							IsPrimaryKey: false,
+							Type:         "TEXT",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	// TODO: Add tests for these helpers???
@@ -208,4 +264,12 @@ func TestGetSchemas(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetColumns(t *testing.T) {
+	// TODO:
+}
+
+func TestGetTableNames(t *testing.T) {
+	// TODO:
 }

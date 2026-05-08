@@ -51,26 +51,24 @@ func camelCase(val string) string {
 }
 
 func getType(col *column) string {
+	if !col.NotNull {
+		panic("columns must be not null")
+	}
+
 	var dataType string
 	switch col.Type {
 	case "TEXT":
 		dataType = "string"
-	case "INTEGER":
+	case "INTEGER", "INT":
 		dataType = "int64"
 	case "REAL":
 		dataType = "float64"
 	case "BLOB":
 		return "[]bytes"
-	case "NULL":
-		return "{}interface"
-	}
-
-	if col.IsPrimaryKey {
-		return dataType
-	}
-
-	if !col.NotNull {
-		return fmt.Sprintf("*%s", dataType)
+	case "ANY":
+		return "any"
+	default:
+		panic("Unknown datatype")
 	}
 
 	return dataType
