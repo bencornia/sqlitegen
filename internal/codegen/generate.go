@@ -71,7 +71,8 @@ func isValidSchema(db *sql.DB, tableName string) (bool, error) {
 						and type = 'TEXT'
 				) as has_valid_updated_at
 		)
-		select is_strict_table
+		select
+			is_strict_table
 			and has_not_null_columns
 			and has_valid_pk
 			and has_valid_created_at
@@ -84,22 +85,59 @@ func isValidSchema(db *sql.DB, tableName string) (bool, error) {
 	return isValid, err
 }
 
-func getSchemas(db *sql.DB) ([]*schema, error) {
-	tableNames, err := db.Query("select name from sqlite_master where type = 'table'")
+func getTableNames(db *sql.DB) ([]string, error) {
+	rows, err := db.Query("select name from sqlite_master where type = 'table'")
 	if err != nil {
 		return nil, err
 	}
 
-	defer catchClosable(tableNames)
+	defer catchClosable(rows)
 
-	var schemas []*schema
-	for tableNames.Next() {
+	var tableNames []string
+	for rows.Next() {
 		var tableName string
-		err = tableNames.Scan(&tableName)
+		err = rows.Scan(&tableName)
 		if err != nil {
 			return nil, err
 		}
 
+		tableNames = append(tableNames, tableName)
+	}
+
+	return tableNames, nil
+}
+
+func getColumns(db *sql.DB, tableName string) ([]*column, error) {
+	query := fmt.Sprintf("select name, type, `notnull`, pk from pragma_table_info('%s')", tableName)
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer catchClosable(rows)
+
+	var columns []*column
+	for rows.Next() {
+		var col column
+		err = rows.Scan(&col.Name, &col.Type, &col.NotNull, &col.IsPrimaryKey)
+		if err != nil {
+			return nil, err
+		}
+
+		columns = append(columns, &col)
+	}
+
+	return columns, nil
+}
+
+func getSchemas(db *sql.DB) ([]*schema, error) {
+	tableNames, err := getTableNames(db)
+	if err != nil {
+		return nil, err
+	}
+
+	var schemas []*schema
+	for _, tableName := range tableNames {
 		ok, err := isValidSchema(db, tableName)
 		if err != nil {
 			return nil, err
@@ -109,22 +147,12 @@ func getSchemas(db *sql.DB) ([]*schema, error) {
 			continue
 		}
 
-		query := fmt.Sprintf("select name, type, `notnull`, pk from pragma_table_info('%s')", tableName)
-		columns, err := db.Query(query)
-		catch(err)
-
-		s := &schema{Name: tableName, Columns: []*column{}}
-		for columns.Next() {
-			var col column
-			err = columns.Scan(&col.Name, &col.Type, &col.NotNull, &col.IsPrimaryKey)
-			if err != nil {
-				return nil, err
-			}
-
-			s.Columns = append(s.Columns, &col)
+		columns, err := getColumns(db, tableName)
+		if err != nil {
+			return nil, err
 		}
 
-		catchClosable(columns)
+		s := &schema{Name: tableName, Columns: columns}
 		schemas = append(schemas, s)
 	}
 

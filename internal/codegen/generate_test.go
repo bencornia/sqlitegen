@@ -2,16 +2,19 @@ package codegen
 
 import (
 	"database/sql"
+	"strings"
 	"testing"
 )
 
 func TestIsValidSchema(t *testing.T) {
 	testCases := []struct {
+		name       string
 		expected   bool
 		tableName  string
 		createStmt string
 	}{
 		{
+			name:      "IsNotStrict",
 			expected:  false,
 			tableName: "not_strict",
 			createStmt: `
@@ -23,6 +26,7 @@ func TestIsValidSchema(t *testing.T) {
 			`,
 		},
 		{
+			name:      "IsValid",
 			expected:  true,
 			tableName: "is_valid",
 			createStmt: `
@@ -34,6 +38,7 @@ func TestIsValidSchema(t *testing.T) {
 			`,
 		},
 		{
+			name:      "IsMissingPrimaryKey",
 			expected:  false,
 			tableName: "missing_pk",
 			createStmt: `
@@ -45,6 +50,7 @@ func TestIsValidSchema(t *testing.T) {
 			`,
 		},
 		{
+			name:      "IsMissingNotNullConstraint",
 			expected:  false,
 			tableName: "missing_not_null",
 			createStmt: `
@@ -57,6 +63,7 @@ func TestIsValidSchema(t *testing.T) {
 			`,
 		},
 		{
+			name:      "IsMissingUpdatedAt",
 			expected:  false,
 			tableName: "missing_updated_at",
 			createStmt: `
@@ -67,6 +74,7 @@ func TestIsValidSchema(t *testing.T) {
 			`,
 		},
 		{
+			name:      "IsMissingCreatedAt",
 			expected:  false,
 			tableName: "missing_created_at",
 			createStmt: `
@@ -79,13 +87,13 @@ func TestIsValidSchema(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		func() {
+		t.Run(tc.name, func(t *testing.T) {
 			db, err := sql.Open("sqlite3", ":memory:")
 			if err != nil {
 				t.Fatal("Failed to open database")
 			}
 
-			defer db.Close()
+			defer catchClosable(db)
 
 			_, err = db.Exec(tc.createStmt)
 			if err != nil {
@@ -100,29 +108,83 @@ func TestIsValidSchema(t *testing.T) {
 			if ok != tc.expected {
 				t.Errorf("expected %v got %v for %s", tc.expected, ok, tc.tableName)
 			}
-		}()
+		})
 	}
 }
 
 func TestGetSchemas(t *testing.T) {
 	testCases := []struct {
-		sql      string
-		expected []*column
+		name    string
+		sql     string
+		schemas []*schema
 	}{
 		{
-			sql:      ``,
-			expected: []*column{},
+			name: "IsValid",
+			sql: `
+				create table foo(
+					id integer primary key not null,
+					updated_at text not null,
+					created_at text not null
+				) strict;
+			`,
+			schemas: []*schema{
+				{
+					Name: "foo",
+					Columns: []*column{
+						{
+							Name:         "id",
+							NotNull:      true,
+							IsPrimaryKey: true,
+							Type:         "INTEGER",
+						},
+						{
+							Name:         "updated_at",
+							NotNull:      true,
+							IsPrimaryKey: false,
+							Type:         "TEXT",
+						},
+						{
+							Name:         "created_at",
+							NotNull:      true,
+							IsPrimaryKey: false,
+							Type:         "TEXT",
+						},
+					},
+				},
+			},
 		},
+		// TODO: Add more testcases
+	}
+
+	// TODO: Add tests for these helpers???
+	columnDeepEqual := func(a *column, b *column) bool {
+		return a.IsPrimaryKey == b.IsPrimaryKey &&
+			strings.Compare(a.Name, b.Name) == 0 &&
+			a.NotNull == b.NotNull &&
+			strings.Compare(a.Type, b.Type) == 0
+	}
+
+	schemaDeepEqual := func(a *schema, b *schema) bool {
+		if len(a.Columns) != len(b.Columns) {
+			return false
+		}
+
+		columnsEqual := true
+		for i := range len(a.Columns) {
+			columnsEqual = columnsEqual && columnDeepEqual(a.Columns[i], b.Columns[i])
+		}
+
+		return columnsEqual
 	}
 
 	for _, tc := range testCases {
-		func() {
+		t.Run(tc.name, func(t *testing.T) {
 			db, err := sql.Open("sqlite3", ":memory:")
 			if err != nil {
 				t.Fatalf("failed to open in memory database: %s", err.Error())
 			}
 
-			defer db.Close()
+			defer catchClosable(db)
 
 			_, err = db.Exec(tc.sql)
 			if err != nil {
@@ -134,11 +196,16 @@ func TestGetSchemas(t *testing.T) {
 				t.Fatalf("failed to getSchemas: %s", err.Error())
 			}
 
-			if len(schemas) != len(tc.expected) {
-				t.Fatalf("got len(schemas) %d but got %d", len(schemas), len(tc.expected))
+			// Compare schemas
+			if len(schemas) != len(tc.schemas) {
+				t.Fatalf("expected len(schemas) to equal %d but got %d", len(tc.schemas), len(schemas))
 			}
 
-			// TODO: Do deep comparison of each column
-		}()
+			for i := range len(schemas) {
+				if !schemaDeepEqual(schemas[i], tc.schemas[i]) {
+					t.Errorf("expected schema for [%s] does not match actual", tc.schemas[i].Name)
+				}
+			}
+		})
 	}
 }
