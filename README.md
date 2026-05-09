@@ -2,17 +2,36 @@
 
 ## Purpose
 
-- generate a `models` package in go from a sqlite file
+When I write a web application, my number one bottleneck is writing the data layer. This project mostly solves that problem. It automatically generates go code from your SQLite tables. Of course, I could just use an LLM but where is the fun in that!
 
 ## Restrictions
 
-- Each table must have an id, updated_at, and created_at fields
-- Otherwise, they will be ignored
+This project takes a highly opinionated view of how SQL should be written. Besides the databse being SQLite[^1] there are several notable requirements:
 
-## Usage
+- Every table must be `strict`[^2]
+- Every table must have an `id integer primary key` column
+- Every table must have `created_at text` and `updated_at text` columns
+- Every column must be `not null`
+
+Tables that do not meet these requirements will not have code generated for them.
+
+Given those requirements the minimal working table has this shape:
+
+```sql
+create table some_table_name(
+    id integer primary key not null,
+    created_at text not null,
+    updated_at text not null,
+) strict;
+```
+
+## Installation
 
 ```bash
-cd examples/basic
-go generate
-go run main.go
+go install github.com/bencornia/sqlitegen/cmd/sqlitegen@latest
 ```
+
+## References
+
+- [^1]: [SQLite Home Page](https://sqlite.org)
+- [^2]: [STRICT tables](https://www.sqlite.org/stricttables.html)
