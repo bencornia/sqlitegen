@@ -1,4 +1,4 @@
-//go:generate go run github.com/bencornia/sqlitegen/cmd/sqlitegen -output internal/model/models.go db.sqlite
+//go:generate go run github.com/bencornia/sqlitegen/cmd/sqlitegen -output-file internal/model/models.go db.sqlite
 package main
 
 import (

@@ -116,7 +116,7 @@ func (s *EmployeeStore) GetById(ctx context.Context, id int64) (*Employee, error
 The `go generate`[^3] command is a tool for running programs that generate code like `sqlitegen`. At the top of your go file put the following:
 
 ```go
-//go:generate go run github.com/bencornia/sqlitegen/cmd/sqlitegen@latest -output <path to generated file> <path to database file>
+//go:generate go run github.com/bencornia/sqlitegen/cmd/sqlitegen@latest -output-file <path to generated file> -package-name <name of package> <path to database file>
 ```
 
 When you run `go build`, it will automatically detect the `//go:generate` command and generate your code prior to compilation.

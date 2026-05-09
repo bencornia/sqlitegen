@@ -2,42 +2,35 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/bencornia/sqlitegen/internal/codegen"
 )
 
-func main() {
-	outFile := flag.String("output", "", "Optional output file name")
-	packageName := flag.String("package", "model", "Optional package name")
-	flag.Parse()
-
-	args := flag.Args()
-	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "Usage %s [-output <outputfile>] [-package <package name>] <inputfile>\n", os.Args[0])
-		os.Exit(1)
-	}
-
-	var writer io.Writer = os.Stdout
-	if *outFile != "" {
-		file, err := os.Create(*outFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create output file: %v\n", err)
-			os.Exit(1)
+func getOrCreateFile(wc *io.WriteCloser) func(string) error {
+	return func(s string) error {
+		if strings.Compare("", s) == 0 {
+			return nil
 		}
 
-		defer func(file *os.File) {
-			err := file.Close()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "An unknown error occurred while closing the output file: %v\n", err)
-				os.Exit(1)
-			}
-		}(file)
+		f, err := os.Create(s)
+		if err != nil {
+			return err
+		}
 
-		writer = file
+		*wc = f
+		return nil
 	}
+}
 
-	codegen.Generate(args[0], *packageName, writer)
+func main() {
+	var wc io.WriteCloser = os.Stdout
+	flag.Func("output-file", "Optional output file name (default stdout)", getOrCreateFile(&wc))
+	packageName := flag.String("package-name", "model", "Optional package name")
+	flag.Parse()
+
+	defer wc.Close()
+	codegen.Generate(flag.Args()[0], *packageName, wc)
 }
