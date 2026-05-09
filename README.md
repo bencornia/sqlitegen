@@ -56,6 +56,8 @@ Generate code from database
 sqlitegen db.sqlite
 ```
 
+And you will see the following
+
 ```go
 // DO NOT EDIT! GENERATED CODE!
 package model
@@ -123,6 +125,8 @@ See the `examples` for usage.
 
 ## References
 
-- [^1]: [SQLite Home Page](https://sqlite.org)
-- [^2]: [STRICT tables](https://www.sqlite.org/stricttables.html)
-- [^3]: [The Go Blog: Generating code](https://go.dev/blog/generate)
+[^1]: [SQLite Home Page](https://sqlite.org)
+
+[^2]: [STRICT tables](https://www.sqlite.org/stricttables.html)
+
+[^3]: [The Go Blog: Generating code](https://go.dev/blog/generate)
