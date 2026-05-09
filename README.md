@@ -119,7 +119,13 @@ The `go generate`[^3] command is a tool for running programs that generate code 
 //go:generate go run github.com/bencornia/sqlitegen/cmd/sqlitegen@latest -output-file <path to generated file> -package-name <name of package> <path to database file>
 ```
 
-When you run `go build`, it will automatically detect the `//go:generate` command and generate your code prior to compilation.
+Then run
+
+```bash
+go generate
+```
+
+`go generate` will detect any files with `//go:generate ...` and run the subsequent command.
 
 See the `examples` for usage.
 
