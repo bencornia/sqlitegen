@@ -93,7 +93,7 @@ func TestIsValidSchema(t *testing.T) {
 				t.Fatal("Failed to open database")
 			}
 
-			defer catchClosable(db)
+			defer closeAndMaybeExit(db)
 
 			_, err = db.Exec(tc.createStmt)
 			if err != nil {
@@ -241,7 +241,7 @@ func TestGetSchemas(t *testing.T) {
 				t.Fatalf("failed to open in memory database: %s", err.Error())
 			}
 
-			defer catchClosable(db)
+			defer closeAndMaybeExit(db)
 
 			_, err = db.Exec(tc.sql)
 			if err != nil {

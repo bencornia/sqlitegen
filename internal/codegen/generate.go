@@ -28,19 +28,15 @@ type column struct {
 	IsPrimaryKey bool
 }
 
-func catch(err error) {
+func maybeExit(err error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }
 
-type closable interface {
-	Close() error
-}
-
-func catchClosable(c closable) {
-	catch(c.Close())
+func closeAndMaybeExit(c io.Closer) {
+	maybeExit(c.Close())
 }
 
 func isValidSchema(db *sql.DB, tableName string) (bool, error) {
@@ -95,7 +91,7 @@ func getTableNames(db *sql.DB) ([]string, error) {
 		return nil, err
 	}
 
-	defer catchClosable(rows)
+	defer closeAndMaybeExit(rows)
 
 	var tableNames []string
 	for rows.Next() {
@@ -118,7 +114,7 @@ func getColumns(db *sql.DB, tableName string) ([]*column, error) {
 		return nil, err
 	}
 
-	defer catchClosable(rows)
+	defer closeAndMaybeExit(rows)
 
 	var columns []*column
 	for rows.Next() {
@@ -166,24 +162,19 @@ func getSchemas(db *sql.DB) ([]*schema, error) {
 func Generate(dsn string, packageName string, writer io.Writer) {
 	// Step 1: Get database
 	db, err := sql.Open("sqlite3", dsn)
-	catch(err)
+	maybeExit(err)
 
-	// Step 2: Check for existing tables
-	var exists bool
-	err = db.QueryRow("select count(*) > 0 from sqlite_master").Scan(&exists)
-	catch(err)
-	if !exists {
-		catch(fmt.Errorf("no tables in %s", dsn))
-	}
-
-	// Step 3:
+	// Step 2:
 	schemas, err := getSchemas(db)
-	catch(err)
+	maybeExit(err)
 	if len(schemas) == 0 {
-		catch(fmt.Errorf("no supported schemas"))
+		// This isn't a fatal error
+		// Should not crash client because they don't have any schemas
+		fmt.Fprintf(os.Stderr, "sqlitegen: no supported schemas")
+		os.Exit(0)
 	}
 
-	// Step 4: Register template functions
+	// Step 3: Register template functions
 	funcs := template.FuncMap{
 		"getTag":      getTag,
 		"pascalCase":  pascalCase,
@@ -196,7 +187,7 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 		"backtick":    backtick,
 	}
 
-	// Step 5: Execute template
+	// Step 4: Execute template
 	var data struct {
 		PackageName string
 		Schemas     []*schema
@@ -209,9 +200,9 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 
 	var buf bytes.Buffer
 	err = tmpl.ExecuteTemplate(&buf, "base", data)
-	catch(err)
+	maybeExit(err)
 
-	// Step 6: Format code
+	// Step 5: Format code
 	opts := &imports.Options{
 		Fragment:   false,
 		AllErrors:  false,
@@ -221,9 +212,9 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 	}
 
 	formatted, err := imports.Process("foo.go", buf.Bytes(), opts)
-	catch(err)
+	maybeExit(err)
 
-	// Step 7: Write file
+	// Step 6: Write file
 	_, err = writer.Write(formatted)
-	catch(err)
+	maybeExit(err)
 }
