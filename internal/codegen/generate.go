@@ -3,6 +3,7 @@ package codegen
 import (
 	"bytes"
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/tools/imports"
 )
+
+//go:embed template.tmpl
+var baseTmpl string
 
 type schema struct {
 	Name    string
@@ -201,8 +205,9 @@ func Generate(dsn string, packageName string, writer io.Writer) {
 	data.PackageName = packageName
 	data.Schemas = schemas
 
+	tmpl := template.Must(template.New("").Funcs(funcs).Parse(baseTmpl))
+
 	var buf bytes.Buffer
-	tmpl := template.Must(template.New("").Funcs(funcs).ParseFiles("internal/codegen/template.tmpl"))
 	err = tmpl.ExecuteTemplate(&buf, "base", data)
 	catch(err)
 

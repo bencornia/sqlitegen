@@ -2,7 +2,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/bencornia/sqlitegen/examples/basic/internal/model"
@@ -10,21 +12,45 @@ import (
 )
 
 func main() {
-	db, _ := sql.Open("sqlite3", "db.sqlite")
+	db, err := sql.Open("sqlite3", "db.sqlite")
+	if err != nil {
+		panic(err)
+	}
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		panic(err)
+	}
+	employeeStore := model.NewEmployeeStore(db)
+	ids, err := employeeStore.InsertMany(
+		ctx,
+		tx,
+		[]*model.Employee{
+			{Name: "George Burdell"},
+			{Name: "Abraham Lincoln"},
+			{Name: "Alexander Hamilton"},
+		},
+	)
 
-	store := model.NewStore(db)
-	employee := &model.Employee{
-		FirstName: "Scottie",
-		LastName:  "Andrus",
-		Age:       64,
+	if err != nil {
+		_ = tx.Rollback()
 	}
 
-	employee, _ = store.InsertEmployee(employee)
-	fmt.Println(employee)
+	employees, err := employeeStore.GetManyTx(ctx, tx, ids)
+	if err != nil {
+		_ = tx.Rollback()
+		panic(err)
+	}
 
-	employee.Age = 62
-	employee, _ = store.UpdateEmployee(employee)
-	fmt.Println(employee)
+	err = tx.Commit()
+	if err != nil {
+		panic(err)
+	}
 
-	_ = store.DeleteEmployee(int(employee.Id))
+	data, err := json.Marshal(employees)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(string(data))
 }
