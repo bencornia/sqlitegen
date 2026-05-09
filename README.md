@@ -1,4 +1,4 @@
-# SQLite Code Generation
+# sqlitegen: A tool for generating go code from a SQLite database
 
 ## Purpose
 
