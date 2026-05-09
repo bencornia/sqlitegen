@@ -25,13 +25,104 @@ create table some_table_name(
 ) strict;
 ```
 
+**Note:** has not been tested on Windows or MacOS.
+
 ## Installation
 
 ```bash
 go install github.com/bencornia/sqlitegen/cmd/sqlitegen@latest
 ```
 
+## Usage
+
+### CLI
+
+Create a database.
+
+```bash
+sqlite3 db.sqlite <<EOF
+create table employee(
+    id integer primary key not null,
+    name text not null,
+    created_at text not null,
+    updated_at text not null
+) strict;
+EOF
+```
+
+Generate code from database
+
+```bash
+sqlitegen db.sqlite
+```
+
+```go
+// DO NOT EDIT! GENERATED CODE!
+package model
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+        "strings"
+)
+
+type Employee struct {
+        Id        int64  `json:"id"`
+        Name      string `json:"name"`
+        CreatedAt string `json:"created_at"`
+        UpdatedAt string `json:"updated_at"`
+}
+
+type EmployeeStore struct {
+        db *sql.DB
+}
+
+func NewEmployeeStore(db *sql.DB) *EmployeeStore {
+        return &EmployeeStore{db: db}
+}
+
+func (s *EmployeeStore) GetById(ctx context.Context, id int64) (*Employee, error) {
+        query := `
+                select  id,
+                        name,
+                        created_at,
+                        updated_at
+                from    employee
+                where   id = ?;
+        `
+
+        var item Employee
+        err := s.db.QueryRowContext(ctx, query, id).Scan(
+                &item.Id,
+                &item.Name,
+                &item.CreatedAt,
+                &item.UpdatedAt,
+        )
+        if err != nil {
+                return nil, err
+        }
+
+        return &item, nil
+}
+
+// code continues...
+```
+
+### go generate
+
+The `go generate`[^3] command is a tool for running programs that generate code like `sqlitegen`. At the top of your go file put the following:
+
+```go
+//go:generate go run github.com/bencornia/sqlitegen/cmd/sqlitegen@latest -output <path to generated file> <path to database file>
+```
+
+When you run `go build`, it will automatically detect the `//go:generate` command and generate your code prior to compilation.
+
+See the `examples` for usage.
+
 ## References
 
 - [^1]: [SQLite Home Page](https://sqlite.org)
 - [^2]: [STRICT tables](https://www.sqlite.org/stricttables.html)
+- [^3]: [The Go Blog: Generating code](https://go.dev/blog/generate)
