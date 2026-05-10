@@ -66,7 +66,9 @@ func (s *{{ $schemaPascal }}Store) Insert(ctx context.Context, item *{{ $schemaP
 			{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") ",\n\t\t\t"}}
 		)
 		values (
-			{{ join (map (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") "?") ",\n\t\t\t" }},
+			{{- range $placeholder := (map (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") "?") }},
+			{{ $placeholder }},
+			{{ end -}}
 			datetime(),
 			datetime()
 		);
