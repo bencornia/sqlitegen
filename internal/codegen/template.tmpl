@@ -63,7 +63,7 @@ func (s *{{ $schemaPascal }}Store) UpdateById(ctx context.Context, item *{{ $sch
 func (s *{{ $schemaPascal }}Store) Insert(ctx context.Context, item *{{ $schemaPascal }}) (int64, error) {
 	query := {{ backtick }}
 		insert into {{ $schema.Name }}(
-			{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") ",\n\t\t\t"}}
+			{{ join (filter ($schema.Columns | columnNames) "id") ",\n\t\t\t"}}
 		)
 		values (
 			{{- range $placeholder := (map (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") "?") }}
