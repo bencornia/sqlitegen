@@ -325,7 +325,7 @@ func (s *{{ $schemaPascal }}Store) InsertMany(ctx context.Context, tx *sql.Tx, i
 		insert into {{ $schema.Name }} (
 			{{ join (filter ($schema.Columns | columnNames) "id") ",\n\t\t\t" }}
 		) values (			
-			{{ range $placeholder := (map (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") "?") }}
+			{{- range $placeholder := (map (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") "?") }}
 			{{ $placeholder }},
 			{{ end -}}
 			datetime(),
@@ -339,7 +339,7 @@ func (s *{{ $schemaPascal }}Store) InsertMany(ctx context.Context, tx *sql.Tx, i
 	}
 
 	var results []int64
-	{{- if gt (len (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at")) 0 -}}
+	{{ if gt (len (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at")) 0 -}}
 	for _, item := range items {
 	{{- else -}}
 	for range items {
