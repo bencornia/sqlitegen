@@ -40,7 +40,7 @@ func (s *{{ $schemaPascal }}Store) GetById(ctx context.Context, id int64) (*{{ $
 func (s *{{ $schemaPascal }}Store) UpdateById(ctx context.Context, item *{{ $schemaPascal }}) error {
 	query := {{ backtick }}
 		update	{{ $schema.Name }}
-		set		{{ range $item := (filter ($schema.Columns | columnNames) "id" "created_at") }}
+		set		{{ range $item := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}
 				{{ $item }} = ?,
 				{{ end -}}
 				updated_at = datetime()
