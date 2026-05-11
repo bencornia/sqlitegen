@@ -47,8 +47,7 @@ func (s *BasicStore) GetById(ctx context.Context, id int64) (*Basic, error) {
 func (s *BasicStore) UpdateById(ctx context.Context, item *Basic) error {
 	query := `
 		update	basic
-		set		 = ?,
-				updated_at = datetime()
+		set		updated_at = datetime()
 		where	id = ?;
 	`
 
