@@ -109,29 +109,6 @@ func (s *{{ $schemaPascal }}Store) DeleteById(ctx context.Context, id int64) err
 	return nil
 }
 
-func (s *{{ $schemaPascal }}Store) DeleteMany(ctx context.Context, ids []int64) error {
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
-	query := {{ backtick }}
-		delete from {{ $schema.Name }}
-		where id in (%s);
-	{{ backtick }}
-
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-
-	_, err := s.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-	
-	return nil
-}
-
 func (s *{{ $schemaPascal }}Store) GetByIdTx(ctx context.Context, tx *sql.Tx, id int64) (*{{ $schemaPascal }}, error) {
 	query := {{ backtick }}
 		select	{{ join ($schema.Columns | columnNames) ",\n\t\t\t\t" }}
@@ -224,98 +201,84 @@ func (s *{{ $schemaPascal }}Store) DeleteByIdTx(ctx context.Context, tx *sql.Tx,
 }
 
 func (s *{{ $schemaPascal }}Store) GetManyTx(ctx context.Context, tx *sql.Tx, ids []int64) ([]*{{ $schemaPascal }}, error) {
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids  {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
 	query := {{ backtick }}
 		select	{{ join ($schema.Columns | columnNames) ",\n\t\t\t\t" }}
 		from	{{ $schema.Name }}
-		where	id in (%s);
+		where	id in ?;
 	{{ backtick }}
 
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-
-	var results []*{{ $schemaPascal }}
-	rows, err := tx.QueryContext(ctx, query, args...)
+	stmt, err := tx.PrepareContext(ctx, query)
 	if err != nil {
-		return results, err
+		return nil, err
 	}
 
-	for rows.Next() {
-		var item {{ $schemaPascal }}
-		err = rows.Scan(	
-		{{ range $column := $schema.Columns -}}
-			&item.{{ $column.Name | pascalCase }},
-		{{ end }})
-
+	var results []*{{ $schemaPascal }}
+	for _, id := range ids {
+		var result {{ $schemaPascal }}
+		_, err = stmt.ExecContext(ctx, id)
 		if err != nil {
 			return nil, err
 		}
 
-		results = append(results, &item)
-	}
-
-	if err = rows.Close(); err != nil {
-		return nil, err
+		results = append(results, &result)
 	}
 
 	return results, nil
 }
 
 func (s *{{ $schemaPascal }}Store) DeleteManyTx(ctx context.Context, tx *sql.Tx, ids []int64) error {
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
 	query := {{ backtick }}
 		delete from {{ $schema.Name }}
-		where id in (%s);
+		where id = ?;
 	{{ backtick }}
 
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-
-	_, err := tx.ExecContext(ctx, query, args...)
+	stmt, err := tx.PrepareContext(ctx, query)
 	if err != nil {
 		return err
 	}
-	
+
+	for _, id := range ids {
+		_, err = stmt.ExecContext(ctx, id)		
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (s *{{ $schemaPascal }}Store) UpdateManyTx(ctx context.Context, tx *sql.Tx, ids []int64, item *{{ $schemaPascal }}) ([]int64, error) {
-	placeholders := make([]string, len(ids))
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("%d", id)
-	}
-
+func (s *{{ $schemaPascal }}Store) UpdateManyTx(ctx context.Context, tx *sql.Tx, items []*{{ $schemaPascal }}) ([]int64, error) {
 	query := {{ backtick }}
 		update	{{ $schema.Name }}
 		set		{{ range $item := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}
 				{{ $item }} = ?,
 				{{ end -}}
 				updated_at = datetime()
-		where id in (%s)
-		returning id;
+		where id = ?;
 	{{ backtick }}
 	
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-
-	rows, err := tx.QueryContext(ctx, query)
+	stmt, err := tx.PrepareContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
 	var results []int64
-	for rows.Next() {
-		var id int64
-		err = rows.Scan(&id)
+	{{ if gt (len (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at")) 0 -}}
+	for _, item := range items {
+	{{- else -}}
+	for range items {
+	{{- end -}}
+		result, err := stmt.ExecContext(
+			ctx,
+			{{ range $columnName := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") -}}
+				&item.{{ $columnName | pascalCase }},
+			{{ end }}
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		id, err := result.LastInsertId()
 		if err != nil {
 			return nil, err
 		}
@@ -323,14 +286,10 @@ func (s *{{ $schemaPascal }}Store) UpdateManyTx(ctx context.Context, tx *sql.Tx,
 		results = append(results, id)
 	}
 
-	if err = rows.Close(); err != nil {
-		return nil, err
-	}
-
 	return results, nil
 }
 
-func (s *{{ $schemaPascal }}Store) InsertMany(ctx context.Context, tx *sql.Tx, items []*{{ $schemaPascal }}) ([]int64, error) {
+func (s *{{ $schemaPascal }}Store) InsertManyTx(ctx context.Context, tx *sql.Tx, items []*{{ $schemaPascal }}) ([]int64, error) {
 	query := {{ backtick }}
 		insert into {{ $schema.Name }} (
 			{{ join (filter ($schema.Columns | columnNames) "id") ",\n\t\t\t" }}
