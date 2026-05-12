@@ -200,6 +200,32 @@ func (s *{{ $schemaPascal }}Store) DeleteByIdTx(ctx context.Context, tx *sql.Tx,
 	return nil
 }
 
+func (s *{{ $schemaPascal }}Store) GetMany(ctx context.Context, ids []int64) ([]*{{ $schemaPascal }}, error) {
+	query := {{ backtick }}
+		select	{{ join ($schema.Columns | columnNames) ",\n\t\t\t\t" }}
+		from	{{ $schema.Name }}
+		where	id in ?;
+	{{ backtick }}
+
+	stmt, err := s.db.PrepareContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []*{{ $schemaPascal }}
+	for _, id := range ids {
+		var result {{ $schemaPascal }}
+		_, err = stmt.ExecContext(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, &result)
+	}
+
+	return results, nil
+}
+
 func (s *{{ $schemaPascal }}Store) GetManyTx(ctx context.Context, tx *sql.Tx, ids []int64) ([]*{{ $schemaPascal }}, error) {
 	query := {{ backtick }}
 		select	{{ join ($schema.Columns | columnNames) ",\n\t\t\t\t" }}
