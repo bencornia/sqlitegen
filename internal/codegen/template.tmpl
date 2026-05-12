@@ -204,13 +204,15 @@ func (s *{{ $schemaPascal }}Store) GetMany(ctx context.Context, ids []int64) ([]
 	query := {{ backtick }}
 		select	{{ join ($schema.Columns | columnNames) ",\n\t\t\t\t" }}
 		from	{{ $schema.Name }}
-		where	id in ?;
+		where	id = ?;
 	{{ backtick }}
 
 	stmt, err := s.db.PrepareContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
+
+	defer stmt.Close()
 
 	var results []*{{ $schemaPascal }}
 	for _, id := range ids {
@@ -233,13 +235,15 @@ func (s *{{ $schemaPascal }}Store) GetManyTx(ctx context.Context, tx *sql.Tx, id
 	query := {{ backtick }}
 		select	{{ join ($schema.Columns | columnNames) ",\n\t\t\t\t" }}
 		from	{{ $schema.Name }}
-		where	id in ?;
+		where	id = ?;
 	{{ backtick }}
 
 	stmt, err := tx.PrepareContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
+
+	defer stmt.Close()
 
 	var results []*{{ $schemaPascal }}
 	for _, id := range ids {
@@ -269,6 +273,8 @@ func (s *{{ $schemaPascal }}Store) DeleteManyTx(ctx context.Context, tx *sql.Tx,
 		return err
 	}
 
+	defer stmt.Close()
+
 	for _, id := range ids {
 		_, err = stmt.ExecContext(ctx, id)		
 		if err != nil {
@@ -293,6 +299,8 @@ func (s *{{ $schemaPascal }}Store) UpdateManyTx(ctx context.Context, tx *sql.Tx,
 	if err != nil {
 		return nil, err
 	}
+
+	defer stmt.Close()
 
 	var results []int64
 	{{ if gt (len (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at")) 0 -}}
@@ -338,6 +346,8 @@ func (s *{{ $schemaPascal }}Store) InsertManyTx(ctx context.Context, tx *sql.Tx,
 	if err != nil {
 		return nil, err
 	}
+
+	defer stmt.Close()
 
 	var results []int64
 	{{ if gt (len (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at")) 0 -}}
