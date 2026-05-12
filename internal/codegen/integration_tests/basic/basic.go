@@ -194,7 +194,7 @@ func (s *BasicStore) GetMany(ctx context.Context, ids []int64) ([]*Basic, error)
 				created_at,
 				updated_at
 		from	basic
-		where	id in ?;
+		where	id = ?;
 	`
 
 	stmt, err := s.db.PrepareContext(ctx, query)
@@ -202,10 +202,16 @@ func (s *BasicStore) GetMany(ctx context.Context, ids []int64) ([]*Basic, error)
 		return nil, err
 	}
 
+	defer stmt.Close()
+
 	var results []*Basic
 	for _, id := range ids {
 		var result Basic
-		_, err = stmt.ExecContext(ctx, id)
+		err = stmt.QueryRowContext(ctx, id).Scan(
+			&result.Id,
+			&result.CreatedAt,
+			&result.UpdatedAt,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -222,7 +228,7 @@ func (s *BasicStore) GetManyTx(ctx context.Context, tx *sql.Tx, ids []int64) ([]
 				created_at,
 				updated_at
 		from	basic
-		where	id in ?;
+		where	id = ?;
 	`
 
 	stmt, err := tx.PrepareContext(ctx, query)
@@ -230,10 +236,16 @@ func (s *BasicStore) GetManyTx(ctx context.Context, tx *sql.Tx, ids []int64) ([]
 		return nil, err
 	}
 
+	defer stmt.Close()
+
 	var results []*Basic
 	for _, id := range ids {
 		var result Basic
-		_, err = stmt.ExecContext(ctx, id)
+		err = stmt.QueryRowContext(ctx, id).Scan(
+			&result.Id,
+			&result.CreatedAt,
+			&result.UpdatedAt,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -254,6 +266,8 @@ func (s *BasicStore) DeleteManyTx(ctx context.Context, tx *sql.Tx, ids []int64) 
 	if err != nil {
 		return err
 	}
+
+	defer stmt.Close()
 
 	for _, id := range ids {
 		_, err = stmt.ExecContext(ctx, id)
@@ -276,6 +290,8 @@ func (s *BasicStore) UpdateManyTx(ctx context.Context, tx *sql.Tx, items []*Basi
 	if err != nil {
 		return nil, err
 	}
+
+	defer stmt.Close()
 
 	var results []int64
 	for range items {
@@ -311,6 +327,8 @@ func (s *BasicStore) InsertManyTx(ctx context.Context, tx *sql.Tx, items []*Basi
 	if err != nil {
 		return nil, err
 	}
+
+	defer stmt.Close()
 
 	var results []int64
 	for range items {

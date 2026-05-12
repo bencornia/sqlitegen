@@ -183,12 +183,135 @@ func TestDeleteById(t *testing.T) {
 	}
 }
 
-func TestGetMany(t *testing.T) {
-	// TODO:
+func TestGetByIdTx(t *testing.T) {
+	// TODO
 }
 
-func TestGetManyTx(t *testing.T) {
-	// TODO:
+func TestInsertTx(t *testing.T) {
+	// TODO
+}
+
+func TestUpdateByIdTx(t *testing.T) {
+	// TODO
+}
+
+func TestDeleteByIdTx(t *testing.T) {
+	// TODO
+}
+
+func TestInsertManyGetMany(t *testing.T) {
+	testCases := []struct {
+		name     string
+		items    []*Basic
+		expected []Basic
+	}{
+		{
+			name:     "OneItem",
+			items:    []*Basic{{}},
+			expected: []Basic{{Id: 1}},
+		},
+		{
+			name:     "TwoItems",
+			items:    []*Basic{{}, {}},
+			expected: []Basic{{Id: 1}, {Id: 2}},
+		},
+		{
+			name:     "MultipleItems",
+			items:    []*Basic{{}, {}, {}},
+			expected: []Basic{{Id: 1}, {Id: 2}, {Id: 3}},
+		},
+	}
+
+	sqlStmt := getSQLString(t, "basic.sql")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTmpDB(t, "basic.sqlite", sqlStmt)
+			defer db.Close()
+
+			ctx := t.Context()
+			tx, err := db.BeginTx(ctx, nil)
+			if err != nil {
+				t.Fatalf("failed to create transaction: %s", err.Error())
+			}
+
+			basicStore := NewBasicStore(db)
+			itemIds, err := basicStore.InsertManyTx(ctx, tx, tc.items)
+			if err != nil {
+				t.Fatalf("failed to insert item: %s", err.Error())
+			}
+
+			err = tx.Commit()
+			if err != nil {
+				t.Fatalf("failed to commit transaction: %s", err.Error())
+			}
+
+			items, err := basicStore.GetMany(ctx, itemIds)
+			if err != nil {
+				t.Fatalf("failed to get item: %s", err.Error())
+			}
+
+			for i := range items {
+				if items[i].Id != tc.expected[i].Id {
+					t.Errorf("expected id to equal %d but got %d", tc.expected[i].Id, items[i].Id)
+				}
+			}
+		})
+	}
+}
+
+func TestInsertManyGetManyTx(t *testing.T) {
+	testCases := []struct {
+		name     string
+		items    []*Basic
+		expected []Basic
+	}{
+		{
+			name:     "OneItem",
+			items:    []*Basic{{}},
+			expected: []Basic{{Id: 1}},
+		},
+		{
+			name:     "TwoItems",
+			items:    []*Basic{{}, {}},
+			expected: []Basic{{Id: 1}, {Id: 2}},
+		},
+		{
+			name:     "MultipleItems",
+			items:    []*Basic{{}, {}, {}},
+			expected: []Basic{{Id: 1}, {Id: 2}, {Id: 3}},
+		},
+	}
+
+	sqlStmt := getSQLString(t, "basic.sql")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTmpDB(t, "basic.sqlite", sqlStmt)
+			defer db.Close()
+
+			ctx := t.Context()
+			tx, err := db.BeginTx(ctx, nil)
+			if err != nil {
+				t.Fatalf("failed to create transaction: %s", err.Error())
+			}
+
+			basicStore := NewBasicStore(db)
+			itemIds, err := basicStore.InsertManyTx(t.Context(), tx, tc.items)
+			if err != nil {
+				t.Fatalf("failed to insert item: %s", err.Error())
+			}
+
+			items, err := basicStore.GetManyTx(t.Context(), tx, itemIds)
+			if err != nil {
+				t.Fatalf("failed to get item: %s", err.Error())
+			}
+
+			for i := range items {
+				if items[i].Id != tc.expected[i].Id {
+					t.Errorf("expected id to equal %d but got %d", tc.expected[i].Id, items[i].Id)
+				}
+			}
+		})
+	}
 }
 
 func TestInsertManyTx(t *testing.T) {
