@@ -297,7 +297,9 @@ func (s *{{ $schemaPascal }}Store) UpdateManyTx(ctx context.Context, tx *sql.Tx,
 
 	query := {{ backtick }}
 		update	{{ $schema.Name }}
-		set		{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") " = ?,\n\t\t\t\t" }} = ?,
+		set		{{ range $item := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}
+				{{ $item }} = ?,
+				{{ end -}}
 				updated_at = datetime()
 		where id in (%s)
 		returning id;
