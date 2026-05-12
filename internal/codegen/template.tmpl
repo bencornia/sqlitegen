@@ -154,7 +154,9 @@ func (s *{{ $schemaPascal }}Store) GetByIdTx(ctx context.Context, tx *sql.Tx, id
 func (s *{{ $schemaPascal }}Store) UpdateByIdTx(ctx context.Context, tx *sql.Tx, item *{{ $schemaPascal }}) error {
 	query := {{ backtick }}
 		update	{{ $schema.Name }}
-		set		{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") " = ?,\n\t\t\t\t" }} = ?,
+		set		{{ range $item := (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") }}
+				{{ $item }} = ?,
+				{{ end -}}
 				updated_at = datetime()
 		where	id = ?;
 	{{ backtick }}
@@ -177,10 +179,12 @@ func (s *{{ $schemaPascal }}Store) UpdateByIdTx(ctx context.Context, tx *sql.Tx,
 func (s *{{ $schemaPascal }}Store) InsertTx(ctx context.Context, tx *sql.Tx, item *{{ $schemaPascal }}) (int64, error) {
 	query := {{ backtick }}
 		insert into {{ $schema.Name }}(
-			{{ join (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") ",\n\t\t\t"}}
+			{{ join (filter ($schema.Columns | columnNames) "id") ",\n\t\t\t"}}
 		)
 		values (
-			{{ join (map (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") "?") ",\n\t\t\t" }},
+			{{- range $placeholder := (map (filter ($schema.Columns | columnNames) "id" "created_at" "updated_at") "?") }}
+			{{ $placeholder }},
+			{{ end -}}
 			datetime(),
 			datetime()
 		);
