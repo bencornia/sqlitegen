@@ -4,8 +4,6 @@ package basic
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"strings"
 )
 
 type Basic struct {
@@ -106,29 +104,6 @@ func (s *BasicStore) DeleteById(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *BasicStore) DeleteMany(ctx context.Context, ids []int64) error {
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
-	query := `
-		delete from basic
-		where id in (%s);
-	`
-
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-
-	_, err := s.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (s *BasicStore) GetByIdTx(ctx context.Context, tx *sql.Tx, id int64) (*Basic, error) {
 	query := `
 		select	id,
@@ -154,8 +129,7 @@ func (s *BasicStore) GetByIdTx(ctx context.Context, tx *sql.Tx, id int64) (*Basi
 func (s *BasicStore) UpdateByIdTx(ctx context.Context, tx *sql.Tx, item *Basic) error {
 	query := `
 		update	basic
-		set		 = ?,
-				updated_at = datetime()
+		set		updated_at = datetime()
 		where	id = ?;
 	`
 
@@ -175,11 +149,10 @@ func (s *BasicStore) UpdateByIdTx(ctx context.Context, tx *sql.Tx, item *Basic) 
 func (s *BasicStore) InsertTx(ctx context.Context, tx *sql.Tx, item *Basic) (int64, error) {
 	query := `
 		insert into basic(
-			
+			created_at,
+			updated_at
 		)
-		values (
-			,
-			datetime(),
+		values (datetime(),
 			datetime()
 		);
 	`
@@ -215,100 +188,105 @@ func (s *BasicStore) DeleteByIdTx(ctx context.Context, tx *sql.Tx, id int64) err
 	return nil
 }
 
-func (s *BasicStore) GetManyTx(ctx context.Context, tx *sql.Tx, ids []int64) ([]*Basic, error) {
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
+func (s *BasicStore) GetMany(ctx context.Context, ids []int64) ([]*Basic, error) {
 	query := `
 		select	id,
 				created_at,
 				updated_at
 		from	basic
-		where	id in (%s);
+		where	id in ?;
 	`
 
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-
-	var results []*Basic
-	rows, err := tx.QueryContext(ctx, query, args...)
+	stmt, err := s.db.PrepareContext(ctx, query)
 	if err != nil {
-		return results, err
+		return nil, err
 	}
 
-	for rows.Next() {
-		var item Basic
-		err = rows.Scan(
-			&item.Id,
-			&item.CreatedAt,
-			&item.UpdatedAt,
-		)
-
+	var results []*Basic
+	for _, id := range ids {
+		var result Basic
+		_, err = stmt.ExecContext(ctx, id)
 		if err != nil {
 			return nil, err
 		}
 
-		results = append(results, &item)
+		results = append(results, &result)
 	}
 
-	if err = rows.Close(); err != nil {
+	return results, nil
+}
+
+func (s *BasicStore) GetManyTx(ctx context.Context, tx *sql.Tx, ids []int64) ([]*Basic, error) {
+	query := `
+		select	id,
+				created_at,
+				updated_at
+		from	basic
+		where	id in ?;
+	`
+
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
 		return nil, err
+	}
+
+	var results []*Basic
+	for _, id := range ids {
+		var result Basic
+		_, err = stmt.ExecContext(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, &result)
 	}
 
 	return results, nil
 }
 
 func (s *BasicStore) DeleteManyTx(ctx context.Context, tx *sql.Tx, ids []int64) error {
-	placeholders := make([]string, len(ids))
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
 	query := `
 		delete from basic
-		where id in (%s);
+		where id = ?;
 	`
 
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-
-	_, err := tx.ExecContext(ctx, query, args...)
+	stmt, err := tx.PrepareContext(ctx, query)
 	if err != nil {
 		return err
+	}
+
+	for _, id := range ids {
+		_, err = stmt.ExecContext(ctx, id)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (s *BasicStore) UpdateManyTx(ctx context.Context, tx *sql.Tx, ids []int64, item *Basic) ([]int64, error) {
-	placeholders := make([]string, len(ids))
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("%d", id)
-	}
-
+func (s *BasicStore) UpdateManyTx(ctx context.Context, tx *sql.Tx, items []*Basic) ([]int64, error) {
 	query := `
 		update	basic
-		set		 = ?,
-				updated_at = datetime()
-		where id in (%s)
-		returning id;
+		set		updated_at = datetime()
+		where id = ?;
 	`
 
-	query = fmt.Sprintf(query, strings.Join(placeholders, ", "))
-
-	rows, err := tx.QueryContext(ctx, query)
+	stmt, err := tx.PrepareContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
 	var results []int64
-	for rows.Next() {
-		var id int64
-		err = rows.Scan(&id)
+	for range items {
+		result, err := stmt.ExecContext(
+			ctx,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		id, err := result.LastInsertId()
 		if err != nil {
 			return nil, err
 		}
@@ -316,14 +294,10 @@ func (s *BasicStore) UpdateManyTx(ctx context.Context, tx *sql.Tx, ids []int64, 
 		results = append(results, id)
 	}
 
-	if err = rows.Close(); err != nil {
-		return nil, err
-	}
-
 	return results, nil
 }
 
-func (s *BasicStore) InsertMany(ctx context.Context, tx *sql.Tx, items []*Basic) ([]int64, error) {
+func (s *BasicStore) InsertManyTx(ctx context.Context, tx *sql.Tx, items []*Basic) ([]int64, error) {
 	query := `
 		insert into basic (
 			created_at,

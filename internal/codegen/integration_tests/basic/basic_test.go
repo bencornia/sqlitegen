@@ -84,7 +84,7 @@ func TestInsertAndGetById(t *testing.T) {
 	}
 }
 
-func TestUpdate(t *testing.T) {
+func TestUpdateById(t *testing.T) {
 	testCases := []struct {
 		name     string
 		item     Basic
@@ -183,7 +183,23 @@ func TestDeleteById(t *testing.T) {
 	}
 }
 
-func TestDeleteMany(t *testing.T) {
+func TestGetMany(t *testing.T) {
+	// TODO:
+}
+
+func TestGetManyTx(t *testing.T) {
+	// TODO:
+}
+
+func TestInsertManyTx(t *testing.T) {
+	// TODO:
+}
+
+func TestUpdateManyTx(t *testing.T) {
+	// TODO:
+}
+
+func TestDeleteManyTx(t *testing.T) {
 	testCases := []struct {
 		name          string
 		items         []*Basic
@@ -191,19 +207,25 @@ func TestDeleteMany(t *testing.T) {
 		expectedCount int64
 	}{
 		{
-			name:          "OneItem",
+			name:          "OneItemDeleteAll",
 			items:         []*Basic{{}},
 			ids:           []int64{1},
 			expectedCount: 0,
 		},
 		{
-			name:          "TwoItems",
+			name:          "TwoItemsDeleteAll",
 			items:         []*Basic{{}, {}},
 			ids:           []int64{1, 2},
 			expectedCount: 0,
 		},
 		{
-			name:          "MultipleItems",
+			name:          "TwoItemsDeleteOne",
+			items:         []*Basic{{}, {}},
+			ids:           []int64{1},
+			expectedCount: 1,
+		},
+		{
+			name:          "MultipleItemsDeleteAll",
 			items:         []*Basic{{}, {}, {}},
 			ids:           []int64{1, 2, 3},
 			expectedCount: 0,
@@ -229,7 +251,7 @@ func TestDeleteMany(t *testing.T) {
 				t.Fatalf("failed to create transaction: %s", err.Error())
 			}
 
-			_, err = basicStore.InsertMany(ctx, tx, tc.items)
+			_, err = basicStore.InsertManyTx(ctx, tx, tc.items)
 			if err != nil {
 				t.Fatalf("failed to insert items: %s", err.Error())
 			}
