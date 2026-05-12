@@ -215,7 +215,7 @@ func (s *{{ $schemaPascal }}Store) GetMany(ctx context.Context, ids []int64) ([]
 	var results []*{{ $schemaPascal }}
 	for _, id := range ids {
 		var result {{ $schemaPascal }}
-		err = stmt.QueryRowContext(ctx, query, id).Scan(
+		err = stmt.QueryRowContext(ctx, id).Scan(
 		{{ range $column := $schema.Columns -}}
 			&result.{{ $column.Name | pascalCase }},
 		{{ end }})
@@ -244,7 +244,7 @@ func (s *{{ $schemaPascal }}Store) GetManyTx(ctx context.Context, tx *sql.Tx, id
 	var results []*{{ $schemaPascal }}
 	for _, id := range ids {
 		var result {{ $schemaPascal }}
-		err = stmt.QueryRowContext(ctx, query, id).Scan(
+		err = stmt.QueryRowContext(ctx, id).Scan(
 		{{ range $column := $schema.Columns -}}
 			&result.{{ $column.Name | pascalCase }},
 		{{ end }})
